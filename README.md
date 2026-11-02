@@ -32,25 +32,25 @@ LLM 能否在同样标签数下，为形成能预测写出比普通描述符更�
 
 ## 目录
 
-- `code/H4_src/`：H4 阶段的全部实验代码（循环、记忆、统计、沙箱执行、LLM 调用的封装）。
-- `code/H4_tests/`：对应的单元测试。
+- `code/H4_src/`、`code/H4_tests/`：H4 阶段的全部实验代码和测试（循环、记忆、统计、沙箱执行、LLM 调用的封装）。
 - `docs/`：H2 数据说明、H3 结果说明、H4 阶段 4.2、4.3、4.4 的完整报告。
-- `predictions/H4_predictions_TEST.csv`：H4 三个阶段在合成 TEST 上的预测（9000 行，不含标签）。
+- `predictions/H4_predictions_TEST.csv`：H4 三个阶段在合成 TEST 上的预测（9000 行）。
+- `data/H2/`：H2 数据生成的全部文件，包括合成数据（POOL 5000、TEST 1000）和真实数据（DFT 与 CHGNet 标签）的 `*_private.json.gz` 文件。
+- `data/H4/`：H4 工作目录，包括每轮的 LLM 请求与回复记录（`llm_calls.jsonl`、`requests/`）、特征代码、统计输出、报告，以及中间缓存。
+- `data/H4_feature_loop/`：H4 对外公开目录的原始文件（预测、指标、运行日志、配置）。
 
-## 数据政策：哪些不公开，为什么
+## 数据政策
 
-以下内容不在本仓库中：
+以下内容都已公开，包括：
 
-- POOL 标签（合成数据，5000 个）。
-- TEST 标签和 HOLDOUT 标签。
-- LLM 的请求与回复记录（`llm_calls.jsonl`、`requests/`）。这些 prompt 里嵌入了带标签的示例，公开它等于公开标签。
-- 完整配置文件和运行日志。它们可能含有标签相关的统计。
+- POOL、TEST、HOLDOUT 的标签。
+- LLM 的 prompt 与回复记录。prompt 中嵌入了带标签的示例。
 
-原因：本研究测的是 LLM 是否记忆了数据。一旦标签进入公开网络，之后的 LLM 可能在训练时见过它们，之后用这些数据做的测试就不再独立。
+注意：本研究测的是 LLM 有没有记忆这些数据。这些标签现在公开，之后的 LLM 很可能在训练时见过它们，之后用这批数据做的记忆测试不再是盲测。之后做记忆测试需要新的数据。
 
 ## 复现
 
-本仓库不含标签数据，所以不能直接复现结果，只能复核代码逻辑和报告中的数字。复现需要：
+复现需要：
 
 - Python，CHGNet 0.3.0，matminer（Magpie 特征）。
 - Matbench mp_e_form（真实 DFT 形成能来源）：<https://figshare.com/articles/dataset/mp_e_form/9755432>
@@ -59,5 +59,6 @@ LLM 能否在同样标签数下，为形成能预测写出比普通描述符更�
 ## 许可证
 
 - 代码（`code/`）：MIT 许可证，见 `LICENSE`。
-- 文档（`docs/`）与预测结果（`predictions/`）：CC BY 4.0，见 `DATA_LICENSE.md`。
+- 文档（`docs/`）、数据（`data/`）与预测结果（`predictions/`）：CC BY 4.0，见 `DATA_LICENSE.md`。
 - 依赖的外部数据与工具（Matbench、CHGNet、CGCNN、matminer 等）各自遵守其原始许可证。
+- 运行时的锁文件（`*.lock`）未包含在内。

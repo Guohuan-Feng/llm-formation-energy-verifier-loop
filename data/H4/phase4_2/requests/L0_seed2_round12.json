@@ -1,0 +1,265 @@
+{
+  "request_id": "L0_seed2_round12",
+  "kind": "features_query",
+  "stage": "4.2",
+  "arm": "L0",
+  "seed": 2,
+  "round_index": 12,
+  "prompt": "Improve HGB descriptors from current validation feedback/summaries. Return JSON {features,queries,rationale}: new complete1..20 {name,description,source}, not a patch; rationale<=200 Unicode chars. L0: no history/notes. Initial []=Magpie-only. Current set=previous model's retained inner-fit features (>20% failures dropped); original code is complete, never budget-truncated. No external held-out feedback.\nPer source: only def feature(s), one numeric scalar; no helpers/decorators/annotations/outer code. Distinct descriptors, no predictors/material lookups; handle empty/None.\nReadonly original-H3 s:\nlattice={matrix:3x3 Angstrom row vectors,lengths_A:[a,b,c],angles_deg:[alpha,beta,gamma],a_A,b_A,c_A,alpha_deg,beta_deg,gamma_deg,volume_A3}.\nsites=[{element:str,frac_coords:3 floats in[0,1),occupancy:float}].\nneighbors=[{i:int,j:int,image:3 ints,distance_A:float}]: all directed periodic6-A neighbors; image translates j; no zero-image self/truncation.\ncomposition={element:atomic_fraction}; n_sites,n_elements:int; volume_per_atom_A3,density_g_cm3:float.\nelement_properties={element:{Z,group,row,eneg,covalent_radius_A,mass_amu,valence_electrons,pymatgen_valence_subshell,first_ionization_energy_eV,electron_affinity_eV,melting_point_K,boiling_point_K,atomic_radius_A,missing_fields}}. Missing numbers=None; valence:H3 convention (not oxidation); subshell:(l,occupancy) or None. Atomic energies allowed; target/IDs/split absent.\nbasic_structure_statistics={volume_per_atom_A3,density_g_cm3,min_neighbor_distance_6A_A,mean_neighbor_distance_6A_A,std_neighbor_distance_6A_A,mean_coordination_6A,std_coordination_6A,lattice_anisotropy,max_angle_deviation_from90_deg}. std:ddof0; coordination:images included; empty distances:0; anisotropy:max(a,b,c)/min(a,b,c).\nLocal variables/if/loops/comprehensions/list/tuple/dict allowed. No import,I/O,network,reflection,private/dunder attrs,eval/exec,dynamic calls,recursion,random,input mutation,object dtype. Limits:function20000chars/2500ASTnodes;50ms/structure. AST/runtime/timeout failure=>NaN. Drop only at>20% inner-fit TRAIN failures, never validation/TEST failures.\nOnly these preprovided names/operations: builtins:abs,all,any,bool,enumerate,float,int,len,list,max,min,range,round,sorted,sum,tuple,zip; math:acos,asin,atan,atan2,ceil,copysign,cos,cosh,degrees,e,exp,expm1,fabs,floor,fsum,hypot,inf,isfinite,isinf,isnan,log,log10,log1p,log2,nan,pi,prod,radians,sin,sinh,sqrt,tan,tanh,tau; np:abs,absolute,all,amax,amin,any,arange,arccos,arcsin,arctan,arctan2,argsort,array,asarray,average,clip,concatenate,cos,cosh,count_nonzero,cross,diag,diagonal,diff,dot,e,exp,expm1,eye,full,hstack,inf,isfinite,isinf,isnan,linspace,log,log10,log1p,log2,matmul,max,maximum,mean,median,min,minimum,nan,nanmax,nanmean,nanmedian,nanmin,nanstd,nansum,ones,percentile,pi,power,ptp,quantile,ravel,reshape,sin,sinh,sort,sqrt,square,stack,std,sum,tan,tanh,trace,transpose,unique,var,vstack,where,zeros; np.linalg:det,eigvals,eigvalsh,matrix_rank,norm,svd; data attrs:T,ndim,shape,size; data methods:get,items,keys,max,mean,min,ravel,reshape,std,sum,transpose,values,var\nqueries:0..3 ordered; each n>=1 integer, sum<=75. Optional unique POOL symbols:include_all=all,include_any=one if nonempty,exclude=none. n_elements,n_sites:closed positive[lo,hi]; template_spacegroup:closed1..230 from POOL final_structure. Conditions AND; unlabeled-only. Fixed arm/seed/round/query RNG draws min(n,matches), no repeats across queries. All unused quota carries, no round topup. After20 uniformly fill budget to2000, no extra feature/notes update. Invalid query:one correction then[] if invalid; root:features,queries,rationale<=200 Unicode chars.\nActive code: @i n=name d=description B=source_UTF8_bytes; full original source follows each header; @end closes:\n@0 n=\"valence_electron_density\" d=\"Occupancy-weighted valence electrons per cell volume.\" B=672\ndef feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    electrons = 0.0\n    occupied = 0.0\n    for site in s.get('sites') or []:\n        o = site.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        occupied += o\n        v = (props.get(site.get('element')) or {}).get('valence_electrons')\n        if v is not None:\n            electrons += o * max(0.0, v)\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is None or volume <= 0:\n        v = s.get('volume_per_atom_A3')\n        volume = v * occupied if v is not None and v > 0 else 0.0\n    return electrons / volume if volume > 0 else 0.0\n@end\n@1 n=\"covalent_overlap_load\" d=\"Squared covalent-sphere overlaps per occupied atom, counting each periodic contact once.\" B=828\ndef feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    total = sum(occ)\n    overlap = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0:\n                overlap += occ[i] * occ[j] * max(0.0, 1.0 - d / (a + b)) ** 2\n    return 0.5 * overlap / total if total > 0 else 0.0\n@end\n@2 n=\"short_p_block_homonuclear_contacts\" d=\"Short homonuclear contacts among group 14–17 atoms, counted once per occupied atom.\" B=1011\ndef feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    elements = [x.get('element') for x in sites]\n    r = [(props.get(e) or {}).get('covalent_radius_A') for e in elements]\n    groups = [(props.get(e) or {}).get('group') for e in elements]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    value = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0 and elements[i] == elements[j]:\n            if groups[i] is not None and 14 <= groups[i] <= 17 and r[i] is not None and r[j] is not None and r[i] > 0 and r[j] > 0:\n                ratio = d / (r[i] + r[j])\n                if ratio <= 1.2:\n                    value += occ[i] * occ[j]\n    total = sum(occ)\n    return 0.5 * value / total if total > 0 else 0.0\n@end\n@3 n=\"mean_first_ionization_energy\" d=\"Composition-weighted mean first ionization energy over available atomic data.\" B=445\ndef feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    value = 0.0\n    total = 0.0\n    for element, fraction in (s.get('composition') or {}).items():\n        x = (props.get(element) or {}).get('first_ionization_energy_eV')\n        if fraction is not None and fraction > 0 and x is not None:\n            value += fraction * x\n            total += fraction\n    return value / total if total > 0 else 0.0\n@end\n@4 n=\"mean_electron_affinity\" d=\"Composition-weighted mean electron affinity over available atomic data.\" B=439\ndef feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    value = 0.0\n    total = 0.0\n    for element, fraction in (s.get('composition') or {}).items():\n        x = (props.get(element) or {}).get('electron_affinity_eV')\n        if fraction is not None and fraction > 0 and x is not None:\n            value += fraction * x\n            total += fraction\n    return value / total if total > 0 else 0.0\n@end\n@5 n=\"atomic_volume\" d=\"Volume per occupied atom, with cell-volume fallback.\" B=436\ndef feature(s):\n    if not s:\n        return 0.0\n    v = s.get('volume_per_atom_A3')\n    if v is not None and v > 0:\n        return float(v)\n    occupied = 0.0\n    for site in s.get('sites') or []:\n        o = site.get('occupancy')\n        occupied += max(0.0, o if o is not None else 1.0)\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    return volume / occupied if volume is not None and volume > 0 and occupied > 0 else 0.0\n@end\nCurrent validation rowMAE eV/atom: 0.279791412\nCurrent worst validation rows (TSV; largest absolute errors first):\nformula\tlabel_eV_per_atom\tprediction_eV_per_atom\tabs_error_eV_per_atom\nC6Mg2\t2.84956424\t0.532387894\t2.31717635\nAu1Co2F6K1\t-1.12531886\t-2.41623998\t1.29092111\nBr12F4Si4\t-1.79961549\t-0.66504989\t1.1345656\nNd1O3U1\t-2.37247549\t-3.44083146\t1.06835596\nN2S2Th2\t-1.90371692\t-0.93536227\t0.968354648\nAl2C10Cl2H2\t1.00491344\t0.0455604752\t0.959352967\nH2N6Si4\t-1.09332448\t-0.13539742\t0.957927056\nF2P1\t-1.41117826\t-2.36661349\t0.955435228\nC12Te3\t1.63786565\t0.708314211\t0.929551436\nLa1Tm1\t0.496193023\t-0.385245206\t0.881438229\nC8Ti4U4\t-0.526041204\t0.352946749\t0.878987953\nCl4Ga4S4\t-1.11521847\t-0.296435487\t0.818782978\nEu2O10V2\t-2.0496593\t-2.85147928\t0.801819979\nN4O2P2Si2\t-1.27169467\t-0.487388992\t0.78430568\nCl2Fe1K1\t-0.828836203\t-1.60921715\t0.780380946\nCl12Nb4S4\t-1.61830185\t-0.856583986\t0.76171786\nAu1K1O14S4\t-1.65407911\t-0.894264665\t0.759814445\nC10Cl2Co2N2\t1.25779639\t0.547588605\t0.710207784\nBi2Cs2F8\t-2.82838916\t-2.14906526\t0.679323901\nO8Sm1W2\t-2.35552238\t-1.70057249\t0.654949893\nCurrent labeled-set summary:\nn=1325; energy_eV_per_atom min/mean/std_ddof0=-4.00277/-1.27077/1.19709; quantiles0/25/50/75/100=-4.00277/-2.16176/-1.28607/-0.366171/2.84956\nelement:material_count Ac:8 Ag:56 Al:43 As:49 Au:21 B:41 Ba:71 Be:7 Bi:27 Br:71 C:187 Ca:60 Cd:28 Ce:31 Cl:134 Co:69 Cr:57 Cs:67 Cu:119 Dy:16 Er:19 Eu:67 F:176 Fe:64 Ga:22 Gd:18 Ge:23 H:63 Hf:5 Hg:20 Ho:20 I:46 In:40 Ir:17 K:91 La:54 Li:110 Lu:14 Mg:54 Mn:88 Mo:49 N:191 Na:79 Nb:35 Nd:58 Ni:60 Np:13 O:495 Os:7 P:76 Pa:8 Pb:24 Pd:26 Pm:3 Pr:42 Pt:18 Pu:16 Rb:68 Re:12 Rh:28 Ru:24 S:111 Sb:60 Sc:22 Se:95 Si:114 Sm:23 Sn:31 Sr:56 Ta:33 Tb:26 Tc:8 Te:73 Th:15 Ti:49 Tl:50 Tm:21 U:61 V:38 W:36 Y:22 Yb:26 Zn:39 Zr:25\nn_elements:count 2:78 3:691 4:478 5:72 6:4 7:2\nn_sites_quantiles0/25/50/75/100 2/9/12/16/20\nUnlabeled POOL catalogue (no target values):\nunlabeled_n=3675\nelement:material_count Ac:12 Ag:209 Al:106 As:186 Au:48 B:88 Ba:248 Be:40 Bi:117 Br:160 C:76 Ca:241 Cd:111 Ce:53 Cl:194 Co:228 Cr:198 Cs:162 Cu:387 Dy:39 Er:68 Eu:58 F:262 Fe:258 Ga:83 Gd:61 Ge:67 H:107 Hf:21 Hg:89 Ho:62 I:179 In:118 Ir:46 K:215 La:125 Li:451 Lu:56 Mg:175 Mn:308 Mo:239 N:80 Na:273 Nb:116 Nd:68 Ni:225 Np:11 O:1724 Os:33 P:183 Pa:14 Pb:109 Pd:91 Pm:13 Pr:64 Pt:55 Pu:23 Rb:187 Re:57 Rh:97 Ru:93 S:454 Sb:155 Sc:63 Se:411 Si:189 Sm:60 Sn:95 Sr:146 Ta:82 Tb:63 Tc:46 Te:283 Th:25 Ti:187 Tl:146 Tm:53 U:44 V:238 W:137 Y:78 Yb:94 Zn:131 Zr:74\nn_elements:count 2:137 3:1946 4:1364 5:221 6:1 7:6\nn_sites_quantiles0/25/50/75/100 2/10/13/16/20\ntemplate_spacegroup_number:count 1:389 2:146 3:6 4:58 5:66 6:64 7:41 8:146 9:25 10:21 11:50 12:224 13:18 14:78 15:67 19:4 20:14 21:1 25:17 26:22 31:32 32:1 33:7 35:1 36:43 38:36 39:1 40:6 41:2 42:8 43:2 44:20 46:14 47:15 55:6 58:9 59:20 60:2 62:93 63:87 64:7 65:29 66:2 67:2 69:2 70:9 71:36 72:30 74:43 79:2 82:27 84:4 85:4 87:10 88:21 97:3 99:33 100:3 102:5 105:4 107:20 115:31 119:27 121:18 122:22 123:131 125:3 127:5 129:65 131:1 136:8 137:3 139:84 140:26 141:23 146:14 147:8 148:78 150:6 152:6 155:5 156:111 160:69 161:8 162:6 163:7 164:80 166:155 167:12 173:4 176:2 180:3 182:2 186:19 187:18 189:9 190:2 191:7 193:2 194:23 198:4 199:6 200:4 204:24 205:1 215:18 216:53 217:2 220:5 221:29 225:227 227:38 229:3\nReturn only final JSON with features,queries,rationale.\n",
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "features",
+      "queries",
+      "rationale"
+    ],
+    "properties": {
+      "rationale": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "queries": {
+        "type": "array",
+        "minItems": 0,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "n"
+          ],
+          "properties": {
+            "include_all": {
+              "$ref": "#/$defs/element_filter"
+            },
+            "include_any": {
+              "$ref": "#/$defs/element_filter"
+            },
+            "exclude": {
+              "$ref": "#/$defs/element_filter"
+            },
+            "n_elements": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "n_sites": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "template_spacegroup": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 230
+              }
+            },
+            "n": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1500
+            }
+          }
+        }
+      },
+      "features": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 800
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000,
+              "description": "Exactly one top-level def feature(s); no other definitions or top-level code."
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "source"
+          ]
+        }
+      }
+    },
+    "$defs": {
+      "element_filter": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "enum": [
+            "Ac",
+            "Ag",
+            "Al",
+            "As",
+            "Au",
+            "B",
+            "Ba",
+            "Be",
+            "Bi",
+            "Br",
+            "C",
+            "Ca",
+            "Cd",
+            "Ce",
+            "Cl",
+            "Co",
+            "Cr",
+            "Cs",
+            "Cu",
+            "Dy",
+            "Er",
+            "Eu",
+            "F",
+            "Fe",
+            "Ga",
+            "Gd",
+            "Ge",
+            "H",
+            "Hf",
+            "Hg",
+            "Ho",
+            "I",
+            "In",
+            "Ir",
+            "K",
+            "La",
+            "Li",
+            "Lu",
+            "Mg",
+            "Mn",
+            "Mo",
+            "N",
+            "Na",
+            "Nb",
+            "Nd",
+            "Ni",
+            "Np",
+            "O",
+            "Os",
+            "P",
+            "Pa",
+            "Pb",
+            "Pd",
+            "Pm",
+            "Pr",
+            "Pt",
+            "Pu",
+            "Rb",
+            "Re",
+            "Rh",
+            "Ru",
+            "S",
+            "Sb",
+            "Sc",
+            "Se",
+            "Si",
+            "Sm",
+            "Sn",
+            "Sr",
+            "Ta",
+            "Tb",
+            "Tc",
+            "Te",
+            "Th",
+            "Ti",
+            "Tl",
+            "Tm",
+            "U",
+            "V",
+            "W",
+            "Y",
+            "Yb",
+            "Zn",
+            "Zr"
+          ]
+        }
+      }
+    }
+  },
+  "instructions": "Return only final JSON matching the response schema. Tools are forbidden. Do not use files, shell, network, or external services. Do not include chain-of-thought or reasoning steps.\n",
+  "max_format_repairs": 1,
+  "admissible_format_failure": true,
+  "canonical_prompt_sha256": "e8f66e23a5b5f4ec0f057a8256f3bcf48da09f805a28907d457dfcba3bcb1a8e",
+  "schema_sha256": "844c63d159844cd3ac4100069211834c743a06503be1596a7163bbd5b6760e5f",
+  "wire_schema_sha256": "cf9a3affd8eaf68d201780af23431c19914a0a9da92135dfa9ab9b80884f01bc",
+  "input_budget": {
+    "method": "utf8_byte_upper_bound_plus_1500_framing",
+    "input_limit": 34000,
+    "canonical_prompt_bytes": 11668,
+    "wire_prompt_bytes": 12039,
+    "known_fixed_context_bytes": 3313,
+    "input_token_upper_bound": 16852,
+    "strict_wire_note_included": true,
+    "format_repair_included": false,
+    "within_budget": true
+  },
+  "format_repair_input_budget": {
+    "method": "utf8_byte_upper_bound_plus_1500_framing",
+    "input_limit": 34000,
+    "canonical_prompt_bytes": 11668,
+    "wire_prompt_bytes": 12194,
+    "known_fixed_context_bytes": 3313,
+    "input_token_upper_bound": 17007,
+    "strict_wire_note_included": true,
+    "format_repair_included": true,
+    "within_budget": true
+  },
+  "current_features_sha256": "d29631c567b516dc631771ba60ad8a733caef22cbde86b7ac6f3181589da6597",
+  "current_feature_count": 6,
+  "current_complete_source_bytes": 3831,
+  "labeled_ids_sha256": "f80e4d40550ebd4978dd5188ef438a7b48df0477835dd3bef8167f22d5b4cbfc",
+  "worst20_ids": [
+    "H2-P-003397",
+    "H2-P-004988",
+    "H2-P-004486",
+    "H2-P-003861",
+    "H2-P-001668",
+    "H2-P-002928",
+    "H2-P-001711",
+    "H2-P-003807",
+    "H2-P-005025",
+    "H2-P-002917",
+    "H2-P-004595",
+    "H2-P-005204",
+    "H2-P-004269",
+    "H2-P-005178",
+    "H2-P-003699",
+    "H2-P-002656",
+    "H2-P-004730",
+    "H2-P-004172",
+    "H2-P-002300",
+    "H2-P-001947"
+  ],
+  "summary_sha256": "00687544d36e0b0c48c1956fd606da076298c8a839f8a8d824fe2d9765417176",
+  "catalogue_sha256": "43f7a88a251c101ec226a67d8231cd0ce0c7990b93a8609a63f98c497318debe",
+  "carry": 0,
+  "capacity": 75
+}

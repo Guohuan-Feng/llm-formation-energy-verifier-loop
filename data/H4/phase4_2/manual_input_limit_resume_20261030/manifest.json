@@ -1,0 +1,402 @@
+{
+  "protocol": "H4-stage4.2-input-limit-manual-resume-v1",
+  "authorization": {
+    "user_text": "选 A：提高输入上限，从第 7 轮续跑。按顺序做，每步完成后再做下一步。\n1. 本地计算，不调用任何模型。按 config.json 里 input_budget_method 的方法（严格 wire schema + wire note + 全局 instructions 的 UTF-8 字节数 + 1500 framing，并检查 format repair suffix）估算第 20 轮的输入大小，给出两个数：(a) 用第 1 到 6 轮实际的增长趋势外推到第 20 轮；(b) 按冻结规则能达到的理论最大值。把结果写入 phase4_2/input_limit_projection.json。\n2. 如果 (a) 超过原上限 20000 的两倍，停下，不发请求，报告数字，等待用户决定。\n3. 否则，把 config.json 里的 input_limit 从 20000 改为能覆盖 (a) 再加 10% 余量的值，向上取整到 1000 字节。这是唯一改动的冻结字段。不改 prompt 内容、schema、指令、查询字段、HGB 参数、seed 或划分。schema 里 source 的 maxLength 20000 是单个特征的长度上限，保持不变。超限即停止的规则保留，不做截断。\n4. 写修订记录 phase4_2/input_limit_amendment.md，写明：原上限 20000，新上限，修改原因（第 7 轮请求长度 22175 超过上限，触发 PromptBudgetExceeded），修改时间；说明第 1 到 6 轮的 prompt 内容未变，也未截断；说明 TEST 没有被读，L0 也没有评分，修改不依赖任何结果。\n5. 更新 config.json 的哈希，并把修订记录的哈希一起记录。冻结完成前不发任何 LLM 请求。\n6. 从第 7 轮续跑 3 个 seed。沿用 4 个并发、重试规则、全局 300 次调用上限（包括修复和重试），以及已冻结的逻辑请求上限。第 1 到 6 轮的结果和缓存保留，不重做。\n7. 第 20 轮完成后，按冻结计划对 L0 做一次性测试集评分，然后停止，等待用户输入\"继续\"再进入 4.3。不要自动开始 4.3。\n完成后报告：新上限，估算值 (a) 和 (b)，修订记录和 config.json 的哈希，续跑开始的轮次，已用的调用次数。",
+    "recorded_utc": "2026-10-31T03:19:48.132077+00:00",
+    "input_limit": 34000
+  },
+  "config": {
+    "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\config.json",
+    "sha256": "bfff6e10ecf9b2d51c76fc20c59b7590e965a7c6988258c317ca5c0ef2fadb22"
+  },
+  "amendment": {
+    "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\input_limit_amendment.md",
+    "sha256": "a2d67d707dbd7215e0fd3bfb14377061297c48d64fc2e72e6664a154fdb5f11d"
+  },
+  "projection": {
+    "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\input_limit_projection.json",
+    "sha256": "c470adeedbf223b6bc2145398a16ed70d98a3d38e8ede1d83bdb4164a5370c63"
+  },
+  "frozen_sources": {
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\h4_l0_common.py": "12c4c0a41fea358f070a7d5f8ab1813c737a8181b6e1db7d57f470f3a05649ec",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\h4_l0_data.py": "bbf7d40e54d51785bbab201f0ec4f5444f5c4199a28f73704fde319ab378dcd1",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\h4_l0_prompts.py": "3fd6ec5e309662aca5ca5a423d36dd78eb7e727c2020eb0c7fe6e37930327d26",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\h4_l0_queries.py": "c8a296c62652dba148c5a15d59a22758511c3155bcf6c425ab3e7229e61e7515",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\h4_l0_models.py": "6a7fb6ead0fb28d8786b45235f5d226b547fbc3400ea9082f058c456726f958c",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\h4_l0_stats.py": "9c48e418b4f1c1c598898e0c585a048222c4a25f29a59f9894bd090a6b408896",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\h4_l0_wire.py": "ff645e12170b2ab40d0125c5b954479e2d528263a1df08ac5101062b444a18f9",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\src\\run_h4_l0.py": "142b7be6778c7c83ae24f2c7e876f33d0d6f4b137be0d85d8ee2061384734dce"
+  },
+  "preserved_trees": {
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed0\\initial_state.json": "fc819b6783e61d79bb9356e19ee9da3a3d9a2003a9b28beb2faaad12e69b3334",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed0\\started.json": "21ca5a43ce42a714e40537ac91773f2520099cccf52af895cfc32fa555e56c82",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed0\\train_features.npz": "4d79e82543ccac0533456e37ac57b0d3c0e40f5de6489b40566969c03d8f5ee9",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed0\\validation_predictions.npz": "67aeccc50ca7636c3a0b5fdf7e2db01b451a0cbf8abf480295291e3fa88c49b6",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed1\\initial_state.json": "62d9cc22bac6ca70afbe56a474e74a9a74c6e3718545813e1c83fb13cbe5aa75",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed1\\started.json": "92c7f44e390354ab255d4ba92b87163dd6d41d42f64dfd2901c3998f49df8a35",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed1\\train_features.npz": "fc7ecfb2f01e73ef5c41d7f2b3cc9674c4cae64f064e6cc579f2252a9e7de910",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed1\\validation_predictions.npz": "4cdace57dd501249b5db5b77d50d02d5e71a4a523b2cd56189c7566ee17e8c0e",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed2\\initial_state.json": "27e728eced210ca53420cb644113ed282f770aa979d817637842bdec95fe01d5",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed2\\started.json": "0610792f8b13571027dc15fd7921fa720075bfca5663b1933582bf07b43c5a94",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed2\\train_features.npz": "b6457fea9be6d1bb72a419cf3e001822f0d51d00fcf9adbee3bb60dac18c5171",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial\\L0_seed2\\validation_predictions.npz": "08cce8748352180ef70402192e3018b762217d1a72579ffa61fba86b2e907e63"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round01": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round01\\round.json": "64d0509cad2f03362a0e49509457957233eddc70ecdbae7201969ccdddd3e35a",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round01\\sandbox_checkpoint\\checkpoint.npz": "b812e784547590b3777de1c4c6c2fdda305c4b19162b6e2ed3820a26da8175f8",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round01\\sandbox_checkpoint\\progress.json": "1a635106a6ea09b716b6f1e3b10426052f94a32d6735d75343d83426b2d47330",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round01\\started.json": "4a18ca6559ba1d575ef65faad4ec0c44e1c241cada8971998891f8af153299b0",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round01\\train_features.npz": "afa8bb74bb9ac819371e58dee88d803ea1aa6ff6de7125c289eb57a6f24f115d",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round01\\validation_predictions.npz": "f3a3ce5e0523360a9cd8f03a9878877e277244927ada3dfaeae653a72c916d55"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round02": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round02\\round.json": "9c78450bd58584fd60bee9e5a36b4e818093338cb1d979e0f52e9946c549d23d",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round02\\sandbox_checkpoint\\checkpoint.npz": "699c23b64cafb8ae1c72841d46886e2131916c4d7955c954be0109bf8f9970cc",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round02\\sandbox_checkpoint\\progress.json": "c1fa2efeea6c5098104299695669bb49b638775f53020c5db2d3339113e2473b",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round02\\started.json": "d610c792779ac2957fff63f655389e8d3c6aff9c804a7480489a059ee4f3d9d6",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round02\\train_features.npz": "4f0d0276448f5f556fab8e11503545203b957d270cacdfdd42739afaa19407de",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round02\\validation_predictions.npz": "3239dcf036b7c9a7b70a2ef75d5b96a0f011d0d7805bec92563003f714f8af1c"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round03": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round03\\round.json": "6eb7e1ab55f6f9cf04dcaf70efa389a085b20954e907bc61fef28eac71a837fd",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round03\\sandbox_checkpoint\\checkpoint.npz": "56af7268f58bc63a3c8b59ef570b9537a64e869dae59416ea08ed0153628bb37",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round03\\sandbox_checkpoint\\progress.json": "52379e6cae4f7ae9d907082d6d02017659a50a71c7d7609dff71a3c1f5a63211",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round03\\started.json": "dd2fbb711a6bedef26f070cdc7c84541f24ff981faa865e4560be2c29d891c49",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round03\\train_features.npz": "88f74748228e02f286df0d7dbfcfd339e8b77ed430a86dd4cd5c119de3f88b32",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round03\\validation_predictions.npz": "b7720aa0c8828c184e065d25459ad3997ab7aa48662338d6cb7eb93b01b85b3a"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round04": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round04\\round.json": "87105e4fc5acdb7d3f8cf1f919842de23ac414ff28157ebee4c18b722435a031",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round04\\sandbox_checkpoint\\checkpoint.npz": "e1d615ab1dee6e6c3c7eac440ff6c68422ebfb90e0dc2a2108f92dbaf630688c",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round04\\sandbox_checkpoint\\progress.json": "60e3055e4fe791ad7aef4322a05fcd9f6f3a8b5e9c72f32645c9282f88329705",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round04\\started.json": "e969cfda9b019e6b39ba9abffeffd4842efe49d6140f07e0f465f40b43d021c8",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round04\\train_features.npz": "317cdae5097e708152e045e1817af96a8b32022c4d004e62e2f266a6c92dccb3",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round04\\validation_predictions.npz": "74e21592004a065291987994ea7805fddaf8cc777d9ebe6b03969bf95586bf01"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round05": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round05\\round.json": "b5d0950739f00a1f02fd479a55476531406d3169b7cef17021d5e1d3887e5f3a",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round05\\sandbox_checkpoint\\checkpoint.npz": "aeb68b0055c7a593202d383b29b2cf500e82b2d0d7ad58f30f50ed776c154c58",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round05\\sandbox_checkpoint\\progress.json": "51c9ca082e33ab642963d488251cd4b8e8cc71e71c6e8d4620ba854c040da449",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round05\\started.json": "0d10f099a770e46dd49023fcd8d3d8a0148ceb964db8b59ea370560a95842341",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round05\\train_features.npz": "dd0b5c099b0ebedc12794b211f9aa9bb983d7e89897a9008d44224499f98b2be",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round05\\validation_predictions.npz": "056d7d57edad180b105593d89ac076d7855af36fdc420657e4815e0a39934230"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round06": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round06\\round.json": "17d0f67e2a674c41d90c41e2548e1b9070b9c4df991cda20b6e33c9589860d8b",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round06\\sandbox_checkpoint\\checkpoint.npz": "53f07b390bab5eea7235acfe8d05fb4f2a3e7d4babb544f81ab4a4823a1068d9",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round06\\sandbox_checkpoint\\progress.json": "85dd5c27b0d0115e7734c89ff147db42663936916cdccca597e3befa77b83235",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round06\\started.json": "badba1b5b931eae0f84151ca43be173a21f3debe747701a1a0222ef276c1de77",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round06\\train_features.npz": "7e0f6677a6e6e1b5aff7639edd876e848fad6f94867f6a3f84f0645dbb8e336f",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed0\\round06\\validation_predictions.npz": "58d50ee43a78727000a7faeecdee2a249abab87439d47ce9020fef5ad053bb3e"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round01": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round01\\round.json": "164f4409ce186acac9cee507eec6482b9f6bf06ad14bc543bcb53659d04bf8b7",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round01\\sandbox_checkpoint\\checkpoint.npz": "fb7e9a0bd1b767230fa833106b7af95fc65178ff63fdb298af499e7ac25d1a1a",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round01\\sandbox_checkpoint\\progress.json": "5ed737543d49f7f94e8d8fa71248ff686dfd9ed95e3ee52281be984b510d3721",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round01\\started.json": "bc31354e40d24f794e301d5114c8538b3e9cc3623863e3d24d495dc282af0a12",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round01\\train_features.npz": "0c938bb4fbf583976e428b21522fa2b771478375befe29d856023e33f4c33039",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round01\\validation_predictions.npz": "75c0f639a18fc217ecfddebdaabfe9cd7c67a97b384a0c9ff584109fb2a29627"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round02": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round02\\round.json": "ef67ef9292ebccb868c1080ca0ff9e279439ed24f73fabe3894fb03a5309a76e",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round02\\sandbox_checkpoint\\checkpoint.npz": "df339150793d60ecb66c4dad9286f93a5a1dabb8f39858fd5840ab69beba4535",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round02\\sandbox_checkpoint\\progress.json": "bea599d1f1b51ab2cc3922823fad9c131c5d1504c0886efc9c0ddb1db96d2d99",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round02\\started.json": "1adff166ec04c8fbe4a2c92995359c2e17bddce026b9678ce07dba224b78b7dd",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round02\\train_features.npz": "e2024e14657e195c827a8733dff02ddd2bcb5431744b616f57d263847d4cbd07",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round02\\validation_predictions.npz": "37bebc41fb2e434c39aa70da140dba03d328e1ad51d994d1a848943da66da632"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round03": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round03\\round.json": "4d47c8f6d0acf70438598a74546e7f8e16fb496f9c7bade284d7ee00d354a7c2",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round03\\sandbox_checkpoint\\checkpoint.npz": "9c25d972df95a2ee7fa7f2ebfba2724956197ac0088e020cbf15f60a32a60f97",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round03\\sandbox_checkpoint\\progress.json": "8ba32cb4703c864b17a56f12d43c7da4db2d8db526893a7d9e9b44f2fd16dfa0",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round03\\started.json": "b81f05afb43a5ea2faa4001740fda18d5fcf609c1696d02d3f61aca4dffdfd2f",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round03\\train_features.npz": "486170ed664cd0c5a57d538a95e9e3aba4b97f5a92f75037e7e76e9ac3522f66",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round03\\validation_predictions.npz": "d33767a17fc7dbd1f7d9c2ffcdaaf68b2a00193c33c5319099786f1c55f189b8"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round04": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round04\\round.json": "44fefb9c09c9ed3ea6bca4c31a8e92265fabc65a2e40fc4f3996bf31cb9c120e",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round04\\sandbox_checkpoint\\checkpoint.npz": "04f24c8eef79271d6a177f04057307493699dbb33b82e5791e5b6b342c43bbfd",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round04\\sandbox_checkpoint\\progress.json": "1eeeca4422093d12558ce3d1f11dfb1fc269428e58d05a4b85288e14c56052b8",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round04\\started.json": "012cb93488768c81d3ac21bf207b536d25562ac59ee6129b55644b3157a648c5",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round04\\train_features.npz": "b5f0a686124830338768da8df423888084f61087b06ce8d66c24f8101d60445e",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round04\\validation_predictions.npz": "e1ca0abf39cac752fa4316195212238c297a99df2a01e6885639d41a767a22f5"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05\\round.json": "8db5f25135a952af61f93fbef3ca746c0ca3d748a062e9c383febe0641e83ede",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05\\sandbox_checkpoint\\checkpoint.npz": "e69e7596895e3be932d910d7d05500c765c512d2875aea4437c0c5c49295dbe5",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05\\sandbox_checkpoint\\progress.json": "9a297b278213174794982a4fc972ac5cec780b0e8f7857457b75bd798869cf80",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05\\started.json": "3b93ead8172631d424e7bed72a085ba44195fb4a885fe16e5760550f5c758b73",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05\\train_features.npz": "38061941fc3da46a4225f7685010e52daa6e6d298d6e7a93f0cd9d807da62deb",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05\\validation_predictions.npz": "0852ed6b20df876dfdead1738a36142855eb3322e6fbf61099be28ac4f887fc8"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round06": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round06\\round.json": "603541972446da28f07432ea9a8e6158e24e4d288633dd5eb78e9c425c43a5e6",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round06\\sandbox_checkpoint\\checkpoint.npz": "1f6f545fb7dbed7af0ba8b436e6607f8600601996f139e59487bf3c8d286eeed",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round06\\sandbox_checkpoint\\progress.json": "ae0404c489a22946ebe56cfc07c418973a271dd80181e1a1229a9e997faf92d7",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round06\\started.json": "8d83a1126cfc155f50a6b034f8281cea36caccf3e7e60342822db0c7d8c4fb77",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round06\\train_features.npz": "941e19b5216932c3ff92bdbba6e37ad084137813e5e7f7b7a26e460374245409",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round06\\validation_predictions.npz": "77178ffab0220e6cf59082ee50dd6c7f3ad5f0c8b80fd497a89f8b9ec93ef056"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round01": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round01\\round.json": "794529fcc65bedd3e4011978845ab003d8bbff63f9937df9fcf9ca0534c4ce8b",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round01\\sandbox_checkpoint\\checkpoint.npz": "52f0230fba9582dcab68f116a380395c4d59269e13f72c853ad4c08e3819004a",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round01\\sandbox_checkpoint\\progress.json": "2cd740253e19fdbd0fe5507796e9b3a2e7cc5f1d9366b4bf0af552b20112e092",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round01\\started.json": "8daca154cc72adf8d60eb7cf4e2431a87289daffbc683bd43cb13c7343296308",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round01\\train_features.npz": "ff8182af6dc424cce5dce3bd88efd545c19ca1ed1bec4641aeeefcec7525be66",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round01\\validation_predictions.npz": "48faae1febad4473abe68f49ff97dee337aaea0452b78571191a6b249088a39c"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round02": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round02\\round.json": "e0d0b840c54753197cbec5b452aeb23037c715bdf3490d117f16dda66fef1420",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round02\\sandbox_checkpoint\\checkpoint.npz": "d71e0c299912b7201a6ee292c6527eff747b56b608d3c1379d4b726ab50abb2c",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round02\\sandbox_checkpoint\\progress.json": "3eb051199daa3b5bd1283798ea53704bf766e17515782a29b00e692e38464907",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round02\\started.json": "189549b242428211b8bfe63d09f8c20ef83cc2bf0f313ce4583798c1d8340548",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round02\\train_features.npz": "32bf5e1ee13b75952731f675fb6eb5ace131d5bec5d2f35b5480f4d03e659cf5",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round02\\validation_predictions.npz": "3e852493ff3cadb813383e942b6ac10571db86bde85c85bd278cb291330344cc"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\round.json": "20a210261af6c75786d220c5bb13aae33852b13566e6a71f562369cd84755431",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\sandbox_checkpoint\\checkpoint.npz": "a3bec79e7235ffa773968dddf812cfc30fb764b0cd83548e409f9086b71ebdc0",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\sandbox_checkpoint\\progress.json": "2c07da51e2c4fe3c110ec8d6ad30cd5d2ba3a0bb05a0e71f063e5fe469cafba2",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\started.json": "d3a201c237724d053662f7a4ca89df284389a9e537f228ac2a13626cbdfe8a86",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\train_features.npz": "03e08eba4932d1ebe4866b9f70dccaaa0346d018ccb9a50916e609f5a486fa3c",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\validation_predictions.npz": "b08ac223855dac209222c9a9ad6d432031d03b7399580303db52d6d9c378c472"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round04": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round04\\round.json": "e5a2e62e21abbcb92be8511116d084685957a999b69edee422ad97b251bf9617",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round04\\sandbox_checkpoint\\checkpoint.npz": "12f4e7fad4c09fc4a91d25d34d71c57f01ca34903d02b9d6745ea74e30b25279",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round04\\sandbox_checkpoint\\progress.json": "7f23d70a6d46af6f324c65b454cb6d5070a0644050defaede7de13c4d8eb679c",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round04\\started.json": "6d0eb67c24797cd13c8a3b1949c460a953b8c56b00b84cb091571fb00a194704",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round04\\train_features.npz": "57632f0264c5189093abbc09933d20e98cfb1a1a81d19f469f5f07891747520c",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round04\\validation_predictions.npz": "696a35df2ee4f6a221cce74c25a70f4ac74df098fc18480409b902cf07f624d9"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round05": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round05\\round.json": "6b6fa1de55241c5690cbeceb20300cbeaf42432936b56e6051b330d5e6d7a127",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round05\\sandbox_checkpoint\\checkpoint.npz": "27c1cc2f9624b9863b7333b8151362dc6d9686615146818a39aa5d6d194685c4",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round05\\sandbox_checkpoint\\progress.json": "d65550a6c025b5c164cc961ab809ca713d7bfa3baa2d7161743acdfbccabeb0d",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round05\\started.json": "875bc68a267aca281546161253824b7fbe3d9855b1d3bd64348c45a40696e765",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round05\\train_features.npz": "3efd5381ee44224d64b63d1b8cdca616279d9ac162540123c681f1ec2123ecb7",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round05\\validation_predictions.npz": "cbe685be461b60d4a19f926cfaf5f2c03c74f2ca669bef514ff797c97bc83de4"
+    },
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round06": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round06\\round.json": "f3935bb9254d55987be09030e2032611259096d11b5f36dae966de8960a44ce8",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round06\\sandbox_checkpoint\\checkpoint.npz": "ecee4a0923c3169f4d59668d1b1d1e0aa0f374195a208ac3ac48bbf9c2afbe53",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round06\\sandbox_checkpoint\\progress.json": "35e27943f15b9069f0644bd407d4dd6319cda6411bb0a66f6281b620fd62bac4",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round06\\started.json": "735452c41fd9ced31c5bbc4206ce9a1ce1f0e42d89571813ce0831c748497f47",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round06\\train_features.npz": "cce931a52936cf764ed5ae7305868c1dbabcf8b4a95e5c06c5d7c061dea3d4a2",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round06\\validation_predictions.npz": "c1422646619764aa3a36af6787eaf6849f26c8cdc87ff286e063133173adf6a6"
+    }
+  },
+  "preserved_files": {
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed0_round01.json": "17c5116841d7eb13295bbd4be59e42c709a8fcad96b9fd1c836b7b2e02fc0ad0",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed0_round02.json": "3d56513c1b65750e9e326564cfb333889040b36dd2e119484356fe617acd40d3",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed0_round03.json": "dc9438dd26c21cd708716ec63c99e483a6242513ddc8515656f1ecac3df203c0",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed0_round04.json": "ee932a9085db4a1c063c04f9c13717acc5febbcdc768f21542e36903f5290b93",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed0_round05.json": "f6b17b98f77ee910c1fe8193640d255d25d1d54cb0adbe6d74f2c82eef1ee098",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed0_round06.json": "3c41c7920e3dd2471a679e6a8922d5e74e80d5fb9164d35bdc165e0ab95a80a2",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed1_round01.json": "605efa2820989f89373a716d94ec09f24f8ae2d53c524763a62374e9419ac2d9",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed1_round02.json": "1c933034c8d7e389b41f9770e10ea4b7871dc01a61616fd4ae4f3eeac9c7ec33",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed1_round03.json": "62bd4a9a880d02ef11a67a3e9286490a46e93db9faf2a35190d7a259291bceca",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed1_round04.json": "dd0e447c4cf01f0ebe64c14ae2e3bf4ff601afb9700d4b81fddbe68dc96f38c5",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed1_round05.json": "2806ccdbbeea32620557ea94bace1688c817d306d5f3549230dda6bdb1ccf0fa",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed1_round06.json": "d947c64f9ae7f0c639aa2b65fb2636e0ca270cd3545b25ea4484d8b43ccdcee4",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed2_round01.json": "0c4e363488f592715d064ac981ee8b365da1bca0218a76843905b36e79a6be60",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed2_round02.json": "0ca5719553f68f66e4a32b45b5f0f468b1894b54158444303be38ff83f281788",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed2_round03.json": "3581351e0ebbc218a62023ef2e09e78bb36533feaf3f35c93c190c5708638bd5",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed2_round04.json": "4134f67899bd00564cf4534929bc94e1c50745f5a85cc57c20bab75ee5384256",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed2_round05.json": "9008e43388904b648c19917d33ae3fea19d1ed477f01331d9889c504cd3f8713",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\requests\\L0_seed2_round06.json": "ab2861d8564c1ae61a5c63d733bc849be642dec26b93e01163b0886a246c6298",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed0_round01.json": "fbec8ce1d5e3fdcd68d7306f7a2d6874763fc451f7589c7e25c7eb2c49a95a97",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed0_round02.json": "aad76348119b2a988e4a851f6d39866e8c6f5ef87c6cc8ae304733e0b01e64f8",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed0_round03.json": "6a7a961c5bc302f6e65806457cb416e72dca1d24be0776719ccf0b6b2ce333cd",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed0_round04.json": "e7e630867cd2df092603beef5ab65414540fd537a247447f94e699d43cd9618f",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed0_round05.json": "577c15b18d45dd8000853eefd01cdc129db06f3bce1311e87a056b75854e45fb",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed0_round06.json": "145f546f29c82ec64e3b3ac58439f72a235bce1fb1e21ad226a41eea659b2e77",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed1_round01.json": "6ed40377d81a409e2e31dd24319e1b763746ab98dabda2dde83f7e1fba80323f",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed1_round02.json": "09979ec8cc435546fd578b48d0fa945992cf1f3fbd49f6eaff6173dc0ee77d69",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed1_round03.json": "da5081fbbd368579bae91a0bf3decac0efe6627a5cb9692f7580e0e049e2cce3",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed1_round04.json": "7afc483c4986a8b692fad2c2dc46dac0489f8492558374b76480081c321edd8f",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed1_round05.json": "f7c6d8d3d8cb394f07d35ccbe2b0796a3cf3acb9415bc3220e7998c1d0ed7059",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed1_round06.json": "a8c6ff5ab31ba2d3a9f7c71f3c38595db9988f00e9bd541adc241e38633fafa0",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed2_round01.json": "bc1fb349cbf42e69be8a8d784e7b128e755df0f1548de908ebdde94641ed2513",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed2_round02.json": "89429672ec17dbba90e9d972c9ac0e803bf689893c7eb85f323bf8600c97b7dd",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed2_round03.json": "d6a0178e324906bf8bb7c8b2f25348526b6b123b6f2ce15d0489e57ffe723285",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed2_round04.json": "490cf6d0fd824e5bc4109e968c355cebfc8cd7c3ca74a635e77321c2e9624712",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed2_round05.json": "f4c978d319d3b4bccf2b4cee198d09f2ddba08776b0c78517bff629592261ae4",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\logical_results\\L0_seed2_round06.json": "ceecd76f3468dec7e575be40d862791dc574e3d8c936acd8d55b845d93ca9352",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed0_round01.json": "c153eb90c534b1f9fd5ace35a72801f041c98d05150dbaa86d1c9d22a096cbcc",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed0_round02.json": "4d39be4e3ed77630a71bc4f45ec153c0f48b4f4d6995bebb5bbedf4d42f45746",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed0_round03.json": "a3131e1585201b8dfea28685ddf8562aa4c75f837337c22446acebe237f0a1de",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed0_round04.json": "f23fa1f8b98d63cb8af187bfd613f2b54875a23aedf9392b135ec848f9ad1069",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed0_round05.json": "85f13e232b4732de9370797dc83891dd70c626005e78201684104db786969405",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed0_round06.json": "89bb626b1078649bb252b0002704a8fa38ccde0d598dc9c870b6de385cb35f3c",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed1_round01.json": "d02d84516cebd394cc00c9380f0d8c693c52f4cdf13d4ed9bdda418fc5a4751e",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed1_round02.json": "08a211e01573663ed485676f761eb71a3e88ed368ef140a747a15cbbf3a73dc9",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed1_round03.json": "caddb9842fc07a41379467a50b6458128037d26e4dc8a376754a235cdaeb837d",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed1_round04.json": "c5f54c6f8cf5ab5ed86a5a18657904aae9c3d09710766dd0cec37b78d6c62a8c",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed1_round05.json": "95e71c92bd907ae9806b0061d0a3999f4985f3540a484c2f5c8ba16f29ca8526",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed1_round06.json": "145036ffd58861ad8a17e81c5f4c8ebb994ce646216fa8b6045e2981b676620e",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed2_round01.json": "e7a7d142c0675ba58d959f280f2d4ab802218cf1e96996450dfa10eee8cb303b",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed2_round02.json": "740c9a64663323cbcfed048d3fe06ed8ce9adde28ced9c4375dd64da2ba603a5",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed2_round03.json": "356c0e20d33c3089d2ece5887f20e87d0fdee0c318b073089a6841acff3636be",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed2_round04.json": "8e8ccd002c2047bc493cd9702e1bca323db4dcaca9f86cf115fe4c558edd2725",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed2_round05.json": "08e93b06f728dea59a46ba77313acbbbba1377ddb185ee26ac7db67f9e7f80d5",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed2_round06.json": "7df19d28e8f7d5e2c869d4ea0c71733f9e32b6f77017f3d93c331dd1dc2ddb82",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial_requests\\L0_seed0_round01.json": "17c5116841d7eb13295bbd4be59e42c709a8fcad96b9fd1c836b7b2e02fc0ad0",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial_requests\\L0_seed1_round01.json": "605efa2820989f89373a716d94ec09f24f8ae2d53c524763a62374e9419ac2d9",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\initial_requests\\L0_seed2_round01.json": "0c4e363488f592715d064ac981ee8b365da1bca0218a76843905b36e79a6be60",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\run_started.json": "fc01762b2c97810c372e9351315b75b25287eeb24a29df46cf11268a03b0a441",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\run_stop.json": "7ca9858f89df6fc12c9cad3daf81982d59d3b624239ffe28ff56417dd314212b",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\process_finished.json": "4a32d0f8084af9cc6551c92a3b847e5b96e9a9713a08444a2cf92e6156047a21",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\pilot_forecast.json": "ebf5ee1cc99cba0f540ae38a791482201c12ff865130502719c41e2210dd1753",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\stage4_1_preservation.json": "6d2c29f323a96a092f22492a2a07e7268880594ac59a82708b16f6a51a7deb6c",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\1.jsonl": "d253432e591abe87ace3e681291c27888b892f208dee9d3ae5e6701b4c7b2c94",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\10.jsonl": "342ed8ecb48ae118003c07413f64f09633bb64388f4f1b46d943311ccb4d40ec",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\11.jsonl": "d03fc8d859df582586babf9a30028625afa07487a7f0cb3c7f1c9f6c42af48b4",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\12.jsonl": "44f25d5d2d6dce29858a090e5e48b05142538fbe0a82e1b3dfc723447180210e",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\13.jsonl": "553d16ed3bbd1109c32a9847e33e03e3ffa41e8955f83ec062ce3e686acf7f19",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\14.jsonl": "c11b3a806623fc9cf350011436b0c2c2f9b052c10d7b0efa885d2eabbce30ecb",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\15.jsonl": "634d70abb4e70f78b036aead56b5b56a2ba51c29cd51430f4eb01a31ebc3754f",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\16.jsonl": "3f9dc075776706b5881881da33e3f082d360d257df318c8214d19dd883df51e3",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\17.jsonl": "99eff6edf95c031a2d784a458d08660932b4d537b853feea2a6f1794fb7fb7d7",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\18.jsonl": "5137226581814f53445f125af58d4e3a0af6fdae8f1960b2f2ef81024767f1a9",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\19.jsonl": "f5b83ed550202334cb7dff5e0e03e521d62490202a6ea2812a6ba41e82fa9692",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\2.jsonl": "c5fe5c0b2442b166cf8a9fbcd0ced9febc070bee32c1b5f6c1cb1f6b14277be8",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\20.jsonl": "46fd8d6e5dd5f0b6621967d90a9f518711ed80e2665d35353be13e0a6a9a196d",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\21.jsonl": "665a617bfdb7e45a300719946544789d594643cff00d19543b995a6909082cc7",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\22.jsonl": "ac9e4a07c440aeba8ed823deb0184cd552a5680658a0e3600eac5415b4539654",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\23.jsonl": "1d4e9cd59ca171ddcf818ce069e469116d8cd481382643de2763982fd3603960",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\24.jsonl": "adabcaa5888160a746da5e2c9915c7b4e1378cc4a1d1479fad316f9d907d9b7b",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\25.jsonl": "c6a4707fd274cf05ce1d737510c58343a94687a59866e54245434bc256308f73",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\26.jsonl": "8c921ab79261dde30331ca6773e1c960fd1725d25e4d15656472c47a0112826c",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\27.jsonl": "84f4571ef21c1a09d8ed38d0a5f6b1ee196b6996cee3ca68b747d20eadb6761f",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\28.jsonl": "f6e29874b65cd3c443df4008b5bb44189c33f3ebad8a644bfe928560fc30dd89",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\29.jsonl": "c2db6b3d3cec6072a3ab812655f47acc399f5604298d33f7775b82bc92cff69c",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\3.jsonl": "298001a69aeb7800065b34795f921339aa15b957475635866cf5d4f48502d1c8",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\30.jsonl": "daf60e69138415d282ff7d8062507d6e2c8f0e2164b9caf82c88dec693eb8e21",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\31.jsonl": "9dc2e83911057e91f4807d47081ff4497b4b864de6eebda28b3ef13d88d978e0",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\32.jsonl": "371e715a5198cadf936b29960bb0080d9434207fa8f7fb9a3e99294d1896c773",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\33.jsonl": "7e5a29af64a3ec5fe339c5dbc85156d48398772c9f3f7321efdeeec368bff962",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\34.jsonl": "42570b6b127d1b348b8ed070cbdd3df05c18e2d8ef6de808274e8914563c0299",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\35.jsonl": "aeb5dd44702517f060e5072096777a44fb64621c0b30d6acced50cf02b5ddf3b",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\36.jsonl": "1af65928d7e11c083aff28e97b41d0547b882cc94a3355c4fdfc16c505ffba89",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\37.jsonl": "a030b8a1f5177c483c4c3651505d8d3aef244e47aa04f4d8484d33075232a368",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\38.jsonl": "740080db032c203a4f4d3144164d47052e245c4aeb64c7d134664d9c84a2f126",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\39.jsonl": "d8200db63683fc6f450ded8fb0e008b8c42f63242058cbbd76a5d19770e581ad",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\4.jsonl": "8189270e4e30d40c53126ce7848b167068bf796afcdd8fd7751e4fbd29f29077",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\40.jsonl": "f1e715dfb8337b1d099fe79d0b7bfc6a4321e727b0f308fa657863b8bee7caa1",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\41.jsonl": "292d5bcae74e734e58e8577f72648cbc3c05c0a190d3fa264ef858d865345648",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\42.jsonl": "0897c780cfac735eb1a112e02a86c9ca40d991a326f1fac5399cb0ee27d92554",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\43.jsonl": "0d1020587b39ec49bf5e91283fab93f2036296cdcfcfa0393dac568fb0f7fb94",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\44.jsonl": "f7f42ed2508ffaa3ab1dedcabc5efc8a5d0e0287485938a65dba0508991358da",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\45.jsonl": "acc9121a2e40589d9a3b34b439644d4ee4ed6ee3815ac36021a0c1f7721811f8",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\46.jsonl": "c6ff584edb60a038cdfba8e0439c43fc279fc787b45d5c44b81a11d250bd06fa",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\47.jsonl": "964cffa192b3c3c4fd3248535c798f7c0540e2b406785c08473897275018a635",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\48.jsonl": "ec7c767cf82d36e9680f0ac93804efb18b5ad4d1a16c2630ac466435fdd9cf3f",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\49.jsonl": "44d7a85b5355696aa8358aeaa73223bc40c60f2026e292846c660802d10af12a",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\5.jsonl": "4bb855dacc6ff804aca566147bde6d69b98e0bf8449d4853f01d2520d3213ba0",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\50.jsonl": "3ee32523ebf00f2422a3b7a6a5ecc41596dd25beb0bf2192ec5e0eae6c216814",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\51.jsonl": "fb080009f8433a2f9652fdf5338cc6493bb8f186006380a8ed007b1f81489639",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\52.jsonl": "40038873f8b576e71429c5e3455ab79782985a4ae11925fa5241838f5cf19477",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\53.jsonl": "7b9eeb53a4bc65d7c458f3ee37b7ba35daf2ed4a4853c1ffb36f6360542a387d",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\54.jsonl": "760fe00832277cd9255c6b9927cb957ae9da3d90866ee17c16375ddead84ad6e",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\55.jsonl": "a7dbdc585d5106cddafc375763a5025892895caa7793ae95fedb733c7893e2f6",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\56.jsonl": "1bc68bef9213cfe327ef6a75ed6edf6e41380e39eea6ab600670238702ed45de",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\57.jsonl": "761260cb6e9da38ad36cfc8acce2bafc62f89210b7c2caead2fcd3fb6cfa3014",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\58.jsonl": "5dce97f919d66331fb30d5077aace705c4b426743cfa69dc44281d34370fd200",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\59.jsonl": "c600609bd2302f9c9e36af8529d8d69b5aaeb5456070bb01ff8305877302c68b",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\6.jsonl": "f0e8be938321fcb21a79c427fa28566be50bfaa326d51d172958a213ab12d717",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\60.jsonl": "625f7a142aed0a400b36ac7f3a5ba540e170af92e18960cc1e9737da66ec5edf",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\61.jsonl": "ee31a3d6e41533f4d67ba84a5f4bdc2f6e94ffffeabe3b437dbc60c051edea6f",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\62.jsonl": "5cb911bebc4b70bde6f95e7fc5f02c15e593db47382013a9bb2674e3cf6fc47e",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\63.jsonl": "6d7bc7b0ee2b15e1587cd4461716b57e138bcec697f23550cfc4191c9f8e17d0",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\64.jsonl": "f8a1d2fcde9d7469ab1156c94d89053bbefb6ae53c116b70ceaae55f07e1bdcf",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\65.jsonl": "94459fcf4632469850216885be66b03bf9ec9f2d7aac5f09ebcc5c936eed02bf",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\66.jsonl": "3502bbc52df07db6ecb0c4e81b3a44c6de5fd7c2bd8eecd5c118c3a0a683514e",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\67.jsonl": "19a5cf17954e0d0a336a2e8540ef1aa9a72481fcff6ea3bc65aec4affd858d13",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\68.jsonl": "6163a75140b8aad01c628c3cc41ee42af07eccde7910ff6349d7eaccb008ebd2",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\69.jsonl": "0ad7bc93a8e1d0f23ef1a3c44e4773b94ad359ac5a36e806ef6405f714d22da4",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\7.jsonl": "feba574a02bed367fd6fe1f3970f145980751f1173d180e9d5359d59c920bdbf",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\70.jsonl": "7e04ba4c002d2ffe8dbe0b8504d5c0f270ee56e7e3e9231a4775e2f8a894a3e1",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\71.jsonl": "1b9aae9b15d513ec4cc440439ab48acca315a11ffd6ce6d9e25a61617d886f3e",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\72.jsonl": "cba26934eeacd87799e97dc20ff9a9fe959847e9922ad9ddda50b3a532f5675a",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\73.jsonl": "6fa7360c8c18bf9d3a0bb130f483e9fdc8aad9428f14233d2cb70bbefd927a4d",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\74.jsonl": "21ae61da89cd649b89944aaa713ca9134e98f2edd20e2cb1b2e29c9dcdf4ec74",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\75.jsonl": "d22ad415f2dc2cabc96aa29ab7348143b1940538ab8205818dcc0d91b1da26b4",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\76.jsonl": "017ab573070e5054ccaaa5852432271f7c87451e84e1e1ec756d2524285b11fd",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\77.jsonl": "dde6f8162764a11682628f5df08342891c72d2575abfcfa61bf25332dccf79cd",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\78.jsonl": "a9823e5e0bcfd2b21b97f2af3594777b100f0befac197c66b21d446aa9661808",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\8.jsonl": "0f22d025718848b8ef11eb7f3106a7df146eece65360f4b6b507c61f303bbf13",
+    "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\resume_transport_logs\\9.jsonl": "61b26b6585cd70dfa1086e9ff928a1c25b78b6d4fea0ea32dcecde520ffa3c38"
+  },
+  "state_snapshots": {
+    "0": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\manual_input_limit_resume_20261030\\pre_resume_states\\seed0.json",
+      "sha256": "e4664bd007091b8c4a93bb530488112e78fdb55816ec7e3500d8969f4969e767",
+      "live_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\states\\seed0.json"
+    },
+    "1": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\manual_input_limit_resume_20261030\\pre_resume_states\\seed1.json",
+      "sha256": "b3b80ba6dd7b802c2370c6e3b738a06d9b811bbc1c27997bb9e612b7d8c752b2",
+      "live_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\states\\seed1.json"
+    },
+    "2": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\manual_input_limit_resume_20261030\\pre_resume_states\\seed2.json",
+      "sha256": "777341550b80e769a5af22d9ca7dc75ea60b4de4e20466ee3cf4609a8c208052",
+      "live_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\states\\seed2.json"
+    }
+  },
+  "preserved_prefixes": {
+    "llm_calls": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\H4_feature_loop\\llm_calls.jsonl",
+      "size": 6940486,
+      "sha256": "b5fd063ab8571a40eb96b8b02c54dc779943ee70dec53d91af09aef49bc07860"
+    },
+    "logical_results": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\request_results.jsonl",
+      "size": 1655069,
+      "sha256": "025d249c89cdcadb64644254a673841147dd5369f2ec37f5c50c92fc5364aeb3"
+    },
+    "transport_events": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\transport\\transport_events.jsonl",
+      "size": 12274,
+      "sha256": "575a6b1c97cab6ae91c39424ec949e6a87c197059ff8f6745496a0494e78f410"
+    },
+    "run_log": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\H4_feature_loop\\run.log",
+      "size": 13749,
+      "sha256": "68a1aee6ca280fa851bda815abc659144fe23dea7e344021f9a2bd967f442d33"
+    },
+    "predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\H4_feature_loop\\predictions.csv",
+      "size": 146487,
+      "sha256": "16fecfe9ea565d9d038c0c49dfbc8ef5c5a6769339cfd31ce2bb7ad7b6c87239"
+    }
+  },
+  "expected_boundary": {
+    "round_completed": 6,
+    "labels_per_seed": 950,
+    "carry": 0,
+    "global_calls": 78
+  },
+  "historical_run_elapsed_seconds": 1475.0470000000205,
+  "global_context_hashes": {
+    "C:\\Users\\28908\\.codex\\AGENTS.md": "6a69562a3cb2ca6a3f6ff213493d7b4f17fc02a208e2564a75d06c3cc8bc5c90"
+  },
+  "manual_directory": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\manual_input_limit_resume_20261030",
+  "start_round": 7,
+  "end_round": 20,
+  "max_calls": 300,
+  "max_logical_requests": 180,
+  "max_workers": 4,
+  "prior_config": {
+    "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\manual_input_limit_resume_20261030\\pre_amendment\\config.json",
+    "sha256": "7c3a2b9e2768b4d448fd57cee3fc640dcf5854e176a82953add58638ca57c3b2"
+  },
+  "sealed_before_any_new_call": true,
+  "test_gate_absent_at_amendment": true,
+  "driver": {
+    "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\manual_input_limit_resume_20261030\\resume_l0_input_limit.py",
+    "sha256": "a12982afe276b2ae2a24a40bc132c40df13e8747e0db8962ba3af8d2a6b72fc2"
+  }
+}

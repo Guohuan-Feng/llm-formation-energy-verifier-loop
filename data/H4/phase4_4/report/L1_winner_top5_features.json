@@ -1,0 +1,200 @@
+{
+  "0": {
+    "features": [
+      {
+        "seed": 0,
+        "winner_round": 19,
+        "feature_index": 10,
+        "name": "covalent_corrected_electron_balance",
+        "description": "Signed main-group electron surplus after short covalent bonds reduce electronegative-site octet demand.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    bonds = s.get('neighbors') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    radii = [max(0.1, (props.get(x.get('element')) or {}).get('covalent_radius_A') or 1.3) for x in sites]\n    occ = [max(0.0, x.get('occupancy', 1.0) or 0.0) for x in sites]\n    total = 0.0\n    for i in range(n):\n        if occ[i] <= 0.0:\n            continue\n        p = props.get(sites[i].get('element')) or {}\n        group = p.get('group')\n        en = p.get('eneg')\n        if group is None or en is None:\n            continue\n        if en < 2.0:\n            if group == 1 or group == 2:\n                total += occ[i] * group\n            elif group == 13 or group == 14:\n                total += occ[i] * (group - 10)\n            continue\n        if not (14 <= group <= 17):\n            continue\n        bond_sum = 0.0\n        for b in bonds:\n            if b.get('i', -1) != i:\n                continue\n            j = b.get('j', -1)\n            d = b.get('distance_A') or 0.0\n            if not (0 <= j < n and 0.0 < d <= 6.0) or occ[j] <= 0.0:\n                continue\n            q = props.get(sites[j].get('element')) or {}\n            other_group = q.get('group')\n            other_en = q.get('eneg')\n            if other_group is None or other_en is None or other_en < 2.0:\n                continue\n            main_group = 14 <= other_group <= 17\n            hydrogen = other_group == 1 and q.get('row') == 1\n            if not (main_group or hydrogen):\n                continue\n            radius_sum = radii[i] + radii[j]\n            if d <= 1.3 * radius_sum:\n                ratio = min(2.0, radius_sum / d)\n                bond_sum += occ[j] * min(3.0, ratio ** 6)\n        total += occ[i] * (bond_sum - (18.0 - group))\n    return total / max(sum(occ), 1e-12)",
+        "source_sha256": "bce5946389375814337ee8a881b262bc1f47290feac51ef7d2eeeef3e98fc2c2",
+        "delta_without_minus_full": 0.009885557399276962,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed0\\round19\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2466361d5d84cac9a320cb926bb6580651b20182c717341993ad33c9c0bb5807"
+      },
+      {
+        "seed": 0,
+        "winner_round": 19,
+        "feature_index": 14,
+        "name": "atomic_hardness_polarization",
+        "description": "Quadratic free-atom charge-equilibration stabilization proxy per occupied atom.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    radii = [max(0.1, (props.get(x.get('element')) or {}).get('covalent_radius_A') or 1.3) for x in sites]\n    occ = [max(0.0, x.get('occupancy', 1.0) or 0.0) for x in sites]\n    ion = [(props.get(x.get('element')) or {}).get('first_ionization_energy_eV') for x in sites]\n    affinity = [(props.get(x.get('element')) or {}).get('electron_affinity_eV') for x in sites]\n    total = 0.0\n    for bond in s.get('neighbors') or []:\n        i = bond.get('i', -1)\n        j = bond.get('j', -1)\n        d = bond.get('distance_A') or 0.0\n        if not (0 <= i < n and 0 <= j < n and 0.0 < d < 6.0):\n            continue\n        if ion[i] is None or ion[j] is None or affinity[i] is None or affinity[j] is None:\n            continue\n        u = d / (1.5 * (radii[i] + radii[j]))\n        w = occ[i] * occ[j] * max(0.0, 1.0 - u * u) ** 2\n        contrast = 0.5 * (ion[i] + affinity[i] - ion[j] - affinity[j])\n        hardness = max(0.5, ion[i] - affinity[i]) + max(0.5, ion[j] - affinity[j])\n        total += w * contrast * contrast / hardness\n    return -0.25 * total / max(sum(occ), 1e-12)",
+        "source_sha256": "a24a5bff78daead3f2a446f8d15a88a61774234764f3099c579a128c5ae63255",
+        "delta_without_minus_full": 0.00803125401367727,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed0\\round19\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2466361d5d84cac9a320cb926bb6580651b20182c717341993ad33c9c0bb5807"
+      },
+      {
+        "seed": 0,
+        "winner_round": 19,
+        "feature_index": 11,
+        "name": "occupied_covalent_packing_fraction",
+        "description": "Occupied covalent-sphere volume divided by unit-cell volume.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    if not sites:\n        return 0.0\n    props = s.get('element_properties') or {}\n    volume = (s.get('lattice') or {}).get('volume_A3') or 0.0\n    if volume <= 0.0:\n        vpa = s.get('volume_per_atom_A3') or (s.get('basic_structure_statistics') or {}).get('volume_per_atom_A3') or 0.0\n        volume = vpa * len(sites)\n    if volume <= 0.0:\n        return 0.0\n    total = 0.0\n    for site in sites:\n        occ = max(0.0, site.get('occupancy', 1.0) or 0.0)\n        radius = max(0.1, (props.get(site.get('element')) or {}).get('covalent_radius_A') or 1.3)\n        total += occ * radius ** 3\n    return 4.1887902047863905 * total / volume",
+        "source_sha256": "20f16e86a128f59739168d3797f373487f69d7b8adbaa7e6ae3cc3ab641bed3d",
+        "delta_without_minus_full": 0.005889077811040699,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed0\\round19\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2466361d5d84cac9a320cb926bb6580651b20182c717341993ad33c9c0bb5807"
+      },
+      {
+        "seed": 0,
+        "winner_round": 19,
+        "feature_index": 5,
+        "name": "nearest_reduced_contact_heterogeneity",
+        "description": "Occupancy-weighted coefficient of variation of sitewise nearest reduced contact distances.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    bonds = s.get('neighbors') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    radii = [max(0.1, (props.get(x.get('element')) or {}).get('covalent_radius_A') or 1.3) for x in sites]\n    occ = [max(0.0, x.get('occupancy', 1.0) or 0.0) for x in sites]\n    first = 0.0\n    second = 0.0\n    weight = 0.0\n    for i in range(n):\n        if occ[i] <= 0.0:\n            continue\n        best = 0.0\n        for b in bonds:\n            if b.get('i', -1) != i:\n                continue\n            j = b.get('j', -1)\n            d = b.get('distance_A') or 0.0\n            if 0 <= j < n and d > 0.0 and occ[j] > 0.0:\n                reduced = d / (radii[i] + radii[j])\n                if best == 0.0 or reduced < best:\n                    best = reduced\n        if best > 0.0:\n            weight += occ[i]\n            first += occ[i] * best\n            second += occ[i] * best * best\n    if weight <= 0.0 or first <= 0.0:\n        return 0.0\n    mean = first / weight\n    return max(0.0, second / weight - mean * mean) ** 0.5 / mean",
+        "source_sha256": "12621277572610b3bdf5e0858202d44991314615d77d02fd3d081820c56cf782",
+        "delta_without_minus_full": 0.0052164605524824825,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed0\\round19\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2466361d5d84cac9a320cb926bb6580651b20182c717341993ad33c9c0bb5807"
+      },
+      {
+        "seed": 0,
+        "winner_round": 19,
+        "feature_index": 0,
+        "name": "soft_contact_ionicity",
+        "description": "Soft-contact-weighted mean bounded squared electronegativity contrast.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    radii = [max(0.1, (props.get(x.get('element')) or {}).get('covalent_radius_A') or 1.3) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [max(0.0, x.get('occupancy', 1.0) or 0.0) for x in sites]\n    total = 0.0\n    weight = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and 0.0 < d < 6.0:\n            if en[i] is not None and en[j] is not None:\n                u = d / (1.5 * (radii[i] + radii[j]))\n                w = occ[i] * occ[j] * max(0.0, 1.0 - u * u) ** 2\n                contrast = (en[i] - en[j]) ** 2\n                total += w * contrast / (1.0 + contrast)\n                weight += w\n    return total / max(weight, 1e-12)",
+        "source_sha256": "13affba209a0647760afe89088f58a0d0e2f057169e1293a9a4c1ff19c76c9de",
+        "delta_without_minus_full": 0.004462553515505369,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed0\\round19\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2466361d5d84cac9a320cb926bb6580651b20182c717341993ad33c9c0bb5807"
+      }
+    ],
+    "retained_without_winner_LOFO": [],
+    "ranking_scope": "saved winner-round internal validation; positive MAE_without-minus-full is beneficial; never TEST selection"
+  },
+  "1": {
+    "features": [
+      {
+        "seed": 1,
+        "winner_round": 20,
+        "feature_index": 5,
+        "name": "minimum_normalized_contact_separation",
+        "description": "Occupied mean of each site's minimum neighbor separation divided by summed covalent radii.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    edges = s.get('neighbors') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    occ = [max(0.0, t.get('occupancy', 1.0) or 0.0) for t in sites]\n    radii = [(props.get(t.get('element')) or {}).get('covalent_radius_A') for t in sites]\n    total = 0.0\n    result = 0.0\n    for i in range(n):\n        a = radii[i]\n        if occ[i] > 0 and a is not None and a > 0:\n            ratios = [edge.get('distance_A') / (a + radii[edge.get('j', -1)]) for edge in edges if edge.get('i', -1) == i and 0 <= edge.get('j', -1) < n and occ[edge.get('j', -1)] > 0 and radii[edge.get('j', -1)] is not None and radii[edge.get('j', -1)] > 0 and edge.get('distance_A') is not None and edge.get('distance_A') > 0]\n            if ratios:\n                result += occ[i] * min(ratios)\n                total += occ[i]\n    if total <= 0:\n        return 0.0\n    return result / total",
+        "source_sha256": "7335ca689a253218559ab59751678393bd2ed179b0184d43ce5028a27f829d8a",
+        "delta_without_minus_full": 0.007091006695959773,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "ddda83650528ee03d0b80a5eba85423498bada760057566cb2a9f2aec455751e"
+      },
+      {
+        "seed": 1,
+        "winner_round": 20,
+        "feature_index": 1,
+        "name": "smooth_contact_coordination",
+        "description": "Occupied mean effective coordination using contact weight 1/(1+(distance/radius_sum)^6).",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    occ = [max(0.0, t.get('occupancy', 1.0) or 0.0) for t in sites]\n    radii = [(props.get(t.get('element')) or {}).get('covalent_radius_A') for t in sites]\n    atoms = sum(occ)\n    if atoms <= 0:\n        return 0.0\n    total = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0:\n                x = d / (a + b)\n                x2 = x * x\n                total += occ[i] * occ[j] / (1.0 + x2 * x2 * x2)\n    return total / atoms",
+        "source_sha256": "888b636875db2d4e729183882d25bc11e11e4881db8f40c70aab9ea433319172",
+        "delta_without_minus_full": 0.005480162762959762,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "ddda83650528ee03d0b80a5eba85423498bada760057566cb2a9f2aec455751e"
+      },
+      {
+        "seed": 1,
+        "winner_round": 20,
+        "feature_index": 14,
+        "name": "coherent_local_electronegativity_contrast",
+        "description": "Occupied mean squared signed contact-averaged neighbor-minus-center electronegativity; opposite local contrasts cancel before squaring.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    occ = [max(0.0, t.get('occupancy', 1.0) or 0.0) for t in sites]\n    radii = [(props.get(t.get('element')) or {}).get('covalent_radius_A') for t in sites]\n    en = [(props.get(t.get('element')) or {}).get('eneg') for t in sites]\n    pairs = [(edge.get('i', -1), edge.get('j', -1), edge.get('distance_A')) for edge in s.get('neighbors') or [] if 0 <= edge.get('i', -1) < n and 0 <= edge.get('j', -1) < n and edge.get('distance_A') is not None and edge.get('distance_A') > 0]\n    valid = [(i, j, d) for i, j, d in pairs if occ[i] > 0 and occ[j] > 0 and radii[i] is not None and radii[j] is not None and radii[i] > 0 and radii[j] > 0 and en[i] is not None and en[j] is not None]\n    weighted = [(i, j, occ[j] / (1.0 + (d / (radii[i] + radii[j])) ** 6)) for i, j, d in valid]\n    result = 0.0\n    total = 0.0\n    for i in range(n):\n        if occ[i] > 0 and en[i] is not None:\n            weight = sum(w for center, j, w in weighted if center == i)\n            if weight > 0:\n                field = sum(w * (en[j] - en[i]) for center, j, w in weighted if center == i) / weight\n                result += occ[i] * field * field\n                total += occ[i]\n    if total <= 0:\n        return 0.0\n    return result / total",
+        "source_sha256": "a4a5a1e68768e38a68c1d3ea206c45165aa240a6dc4a6d07a4331deffc44559b",
+        "delta_without_minus_full": 0.004969557536322944,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "ddda83650528ee03d0b80a5eba85423498bada760057566cb2a9f2aec455751e"
+      },
+      {
+        "seed": 1,
+        "winner_round": 20,
+        "feature_index": 7,
+        "name": "contact_hardness_scaled_electronic_contrast",
+        "description": "Contact-weighted squared Mulliken electronegativity difference divided by summed neutral-atom hardness, per occupied atom.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    occ = [max(0.0, t.get('occupancy', 1.0) or 0.0) for t in sites]\n    atoms = sum(occ)\n    if atoms <= 0:\n        return 0.0\n    radii = [(props.get(t.get('element')) or {}).get('covalent_radius_A') for t in sites]\n    ion = [(props.get(t.get('element')) or {}).get('first_ionization_energy_eV') for t in sites]\n    affinity = [(props.get(t.get('element')) or {}).get('electron_affinity_eV') for t in sites]\n    result = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0 and occ[i] > 0 and occ[j] > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0:\n                if ion[i] is not None and affinity[i] is not None and ion[j] is not None and affinity[j] is not None:\n                    hi = ion[i] - affinity[i]\n                    hj = ion[j] - affinity[j]\n                    if hi > 1e-8 and hj > 1e-8:\n                        delta = 0.5 * (ion[i] + affinity[i] - ion[j] - affinity[j])\n                        x = d / (a + b)\n                        x2 = x * x\n                        w = occ[i] * occ[j] / (1.0 + x2 * x2 * x2)\n                        result += w * delta * delta / (hi + hj)\n    return 0.5 * result / atoms",
+        "source_sha256": "49108e28d9bbd582d2780ac75f8c9004c9b0f9ae40a1c2a003fd98b794900a8e",
+        "delta_without_minus_full": 0.004697443151394309,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "ddda83650528ee03d0b80a5eba85423498bada760057566cb2a9f2aec455751e"
+      },
+      {
+        "seed": 1,
+        "winner_round": 20,
+        "feature_index": 16,
+        "name": "local_contact_direction_imbalance",
+        "description": "Occupied mean squared magnitude of the contact-weighted local mean bond direction; measures directional imbalance missed by even-rank invariants.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    edges = s.get('neighbors') or []\n    n = len(sites)\n    occ = [max(0.0, t.get('occupancy', 1.0) or 0.0) for t in sites]\n    radii = [(props.get(t.get('element')) or {}).get('covalent_radius_A') for t in sites]\n    lattice = np.asarray(matrix, dtype=float)\n    result = 0.0\n    total = 0.0\n    for i in range(n):\n        fi = sites[i].get('frac_coords')\n        a = radii[i]\n        if occ[i] > 0 and fi is not None and a is not None and a > 0:\n            nearby = [edge for edge in edges if edge.get('i', -1) == i and 0 <= edge.get('j', -1) < n and occ[edge.get('j', -1)] > 0 and radii[edge.get('j', -1)] is not None and radii[edge.get('j', -1)] > 0 and edge.get('distance_A') is not None and edge.get('distance_A') > 0 and edge.get('image') is not None and sites[edge.get('j', -1)].get('frac_coords') is not None]\n            if nearby:\n                delta = np.asarray([[sites[edge.get('j')].get('frac_coords')[k] + edge.get('image')[k] - fi[k] for k in range(3)] for edge in nearby], dtype=float)\n                vectors = np.matmul(delta, lattice)\n                norms = np.sqrt(np.sum(vectors * vectors, axis=1))\n                weights = np.asarray([occ[edge.get('j')] / (1.0 + (edge.get('distance_A') / (a + radii[edge.get('j')])) ** 6) for edge in nearby], dtype=float)\n                weights = weights * np.where(norms > 1e-12, 1.0, 0.0)\n                weight = float(np.sum(weights))\n                if weight > 0:\n                    unit = vectors / np.maximum(norms, 1e-12).reshape(-1, 1)\n                    direction = np.sum(unit * weights.reshape(-1, 1), axis=0) / weight\n                    value = float(np.sum(direction * direction))\n                    result += occ[i] * max(0.0, min(1.0, value))\n                    total += occ[i]\n    if total <= 0:\n        return 0.0\n    return result / total",
+        "source_sha256": "1a9335115190aa2a35aa8248f07c694dbe5282891957f12015c6b34d61f1962d",
+        "delta_without_minus_full": 0.004221498266612667,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "ddda83650528ee03d0b80a5eba85423498bada760057566cb2a9f2aec455751e"
+      }
+    ],
+    "retained_without_winner_LOFO": [],
+    "ranking_scope": "saved winner-round internal validation; positive MAE_without-minus-full is beneficial; never TEST selection"
+  },
+  "2": {
+    "features": [
+      {
+        "seed": 2,
+        "winner_round": 20,
+        "feature_index": 2,
+        "name": "neutral_main_group_contact_deficit",
+        "description": "Mean squared fractional soft-coordination deficit against neutral main-group covalent references.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    radii = [(props.get(a.get('element')) or {}).get('covalent_radius_A') or 0.0 for a in sites]\n    occ = [1.0 if a.get('occupancy') is None else max(0.0, a.get('occupancy')) for a in sites]\n    edges = [(e.get('i'), e.get('j'), e.get('distance_A') or 0.0) for e in s.get('neighbors') or []]\n    bonds = [(i, j, d) for i, j, d in edges if i is not None and j is not None and 0 <= i < n and 0 <= j < n and d > 0 and radii[i] > 0 and radii[j] > 0 and d < 1.35 * (radii[i] + radii[j])]\n    total = 0.0\n    amount = 0.0\n    for i, a in enumerate(sites):\n        if radii[i] <= 0 or occ[i] <= 0:\n            continue\n        p = props.get(a.get('element')) or {}\n        group = p.get('group')\n        if p.get('Z') == 1:\n            reference = 1.0\n        elif group is not None and 13 <= group <= 17:\n            reference = float(min(group - 10, 18 - group))\n        else:\n            continue\n        coordination = sum(occ[j] * ((1.35 - d / (radii[i] + radii[j])) / 0.35) ** 2 for ii, j, d in bonds if ii == i)\n        deficit = max(0.0, 1.0 - coordination / reference)\n        total += occ[i] * deficit * deficit\n        amount += occ[i]\n    return float(total / amount) if amount > 0 else 0.0",
+        "source_sha256": "e95d8a62ef94e8395ae7f636e96d5b91483bc271dccecb95e212913dfd57544c",
+        "delta_without_minus_full": 0.002229978855975312,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed2\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2fb4a0da20441d210aaf25de508173d3c87e75ed72cb636491a98a44225002a1"
+      },
+      {
+        "seed": 2,
+        "winner_round": 20,
+        "feature_index": 3,
+        "name": "soft_coordination_heterogeneity",
+        "description": "Occupancy-weighted squared coefficient of variation of site soft coordination.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    radii = [(props.get(a.get('element')) or {}).get('covalent_radius_A') or 0.0 for a in sites]\n    occ = [1.0 if a.get('occupancy') is None else max(0.0, a.get('occupancy')) for a in sites]\n    edges = [(e.get('i'), e.get('j'), e.get('distance_A') or 0.0) for e in s.get('neighbors') or []]\n    bonds = [(i, j, d) for i, j, d in edges if i is not None and j is not None and 0 <= i < n and 0 <= j < n and d > 0 and radii[i] > 0 and radii[j] > 0 and d < 1.35 * (radii[i] + radii[j])]\n    first = 0.0\n    second = 0.0\n    amount = 0.0\n    for i in range(n):\n        if radii[i] <= 0 or occ[i] <= 0:\n            continue\n        coordination = sum(occ[j] * ((1.35 - d / (radii[i] + radii[j])) / 0.35) ** 2 for ii, j, d in bonds if ii == i)\n        first += occ[i] * coordination\n        second += occ[i] * coordination * coordination\n        amount += occ[i]\n    if amount <= 0 or first <= 0:\n        return 0.0\n    mean = first / amount\n    return float(max(0.0, second / amount - mean * mean) / (mean * mean))",
+        "source_sha256": "99bca00c41a8e14c4d8a530b1f609cb2c88a7274c6f0d640ff70622496387317",
+        "delta_without_minus_full": 0.0008180172941622266,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed2\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2fb4a0da20441d210aaf25de508173d3c87e75ed72cb636491a98a44225002a1"
+      },
+      {
+        "seed": 2,
+        "winner_round": 20,
+        "feature_index": 4,
+        "name": "local_chemical_field_squared",
+        "description": "Mean squared sitewise signed electronegativity contrast to soft-contact neighbors, preserving cancellation within mixed environments.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    radii = [(props.get(a.get('element')) or {}).get('covalent_radius_A') or 0.0 for a in sites]\n    eneg = [(props.get(a.get('element')) or {}).get('eneg') for a in sites]\n    occ = [1.0 if a.get('occupancy') is None else max(0.0, a.get('occupancy')) for a in sites]\n    edges = [(a.get('i'), a.get('j'), a.get('distance_A') or 0.0) for a in s.get('neighbors') or []]\n    bonds = [(i, j, (1.35 - d / (radii[i] + radii[j])) ** 2) for i, j, d in edges if i is not None and j is not None and 0 <= i < n and 0 <= j < n and d > 0 and radii[i] > 0 and radii[j] > 0 and eneg[i] is not None and eneg[j] is not None and d < 1.35 * (radii[i] + radii[j])]\n    total = 0.0\n    amount = 0.0\n    for i in range(n):\n        if occ[i] <= 0 or eneg[i] is None or radii[i] <= 0:\n            continue\n        weight = sum(occ[j] * w for ii, j, w in bonds if ii == i)\n        if weight <= 0:\n            continue\n        field = sum(occ[j] * w * (eneg[j] - eneg[i]) for ii, j, w in bonds if ii == i) / weight\n        total += occ[i] * field * field\n        amount += occ[i]\n    return float(total / amount) if amount > 0 else 0.0",
+        "source_sha256": "a018aa665a35fd418febd404a5ebcdc7835b359bdaca020ec1f73d9fe1bad682",
+        "delta_without_minus_full": 0.0005836496802748281,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed2\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2fb4a0da20441d210aaf25de508173d3c87e75ed72cb636491a98a44225002a1"
+      },
+      {
+        "seed": 2,
+        "winner_round": 20,
+        "feature_index": 13,
+        "name": "all_contact_compression",
+        "description": "Squared covalent-radius overlap summed over all directed contacts per occupied atom, including metal-containing contacts.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    radii = [(props.get(a.get('element')) or {}).get('covalent_radius_A') or 0.0 for a in sites]\n    occ = [1.0 if a.get('occupancy') is None else max(0.0, a.get('occupancy')) for a in sites]\n    amount = sum(occ[i] for i in range(n) if radii[i] > 0)\n    if amount <= 0:\n        return 0.0\n    total = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i')\n        j = edge.get('j')\n        d = edge.get('distance_A') or 0.0\n        if i is None or j is None or not 0 <= i < n or not 0 <= j < n or d <= 0:\n            continue\n        if radii[i] <= 0 or radii[j] <= 0:\n            continue\n        overlap = max(0.0, 1.0 - d / (radii[i] + radii[j]))\n        total += occ[i] * occ[j] * overlap * overlap\n    return float(total / amount)",
+        "source_sha256": "ffc3b5ad82e7690f3b441c57eba7bf02bc65414c713896ed1520b6261b58ddf1",
+        "delta_without_minus_full": 0.0002584225561642617,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed2\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2fb4a0da20441d210aaf25de508173d3c87e75ed72cb636491a98a44225002a1"
+      },
+      {
+        "seed": 2,
+        "winner_round": 20,
+        "feature_index": 6,
+        "name": "electronegative_framework_contact_fraction",
+        "description": "Fraction of soft-contact weight linking two group-14–17 atoms with electronegativity at least 2.5.",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    n = len(sites)\n    p = [props.get(a.get('element')) or {} for a in sites]\n    radii = [a.get('covalent_radius_A') or 0.0 for a in p]\n    groups = [a.get('group') for a in p]\n    eneg = [a.get('eneg') for a in p]\n    selected = [groups[i] is not None and 14 <= groups[i] <= 17 and eneg[i] is not None and eneg[i] >= 2.5 for i in range(n)]\n    occ = [1.0 if a.get('occupancy') is None else max(0.0, a.get('occupancy')) for a in sites]\n    total = 0.0\n    weight = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i')\n        j = edge.get('j')\n        d = edge.get('distance_A') or 0.0\n        if i is None or j is None or not 0 <= i < n or not 0 <= j < n or d <= 0:\n            continue\n        if radii[i] <= 0 or radii[j] <= 0 or groups[i] is None or groups[j] is None or eneg[i] is None or eneg[j] is None:\n            continue\n        w = occ[i] * occ[j] * max(0.0, 1.35 - d / (radii[i] + radii[j])) ** 2\n        weight += w\n        if selected[i] and selected[j]:\n            total += w\n    return float(total / weight) if weight > 0 else 0.0",
+        "source_sha256": "6ef44971628984007a49fbc9385cbac1740ae75f78baae1cf9c16674e400ce90",
+        "delta_without_minus_full": -2.6175629109115306e-05,
+        "LOFO_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed2\\round20\\lofo\\lofo.json",
+        "LOFO_record_sha256": "2fb4a0da20441d210aaf25de508173d3c87e75ed72cb636491a98a44225002a1"
+      }
+    ],
+    "retained_without_winner_LOFO": [],
+    "ranking_scope": "saved winner-round internal validation; positive MAE_without-minus-full is beneficial; never TEST selection"
+  }
+}

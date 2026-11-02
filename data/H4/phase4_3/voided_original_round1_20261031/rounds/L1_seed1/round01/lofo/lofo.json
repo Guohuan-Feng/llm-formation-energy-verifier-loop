@@ -1,0 +1,430 @@
+{
+  "schema_version": "H4.3-LOFO-complete-v1",
+  "status": "complete",
+  "identity": {
+    "protocol": "H4.3-LOFO-cached-TRAIN-validation-only-v1",
+    "source_round_record_sha256": "24d48c4978a11e1c1eb1bd2762a61de272dd3848d591a9744fe5aa32c4dfabd6",
+    "source_round_artifacts": {
+      "train_features": {
+        "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round01\\train_features.npz",
+        "sha256": "82ad626935b9fc89117d01df08615e9afaa6d5434383e0424e8f6d48d8d490a2"
+      },
+      "validation_predictions": {
+        "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round01\\validation_predictions.npz",
+        "sha256": "2e6bb1ac09c91edba4c28b8b61737aea8dd3da3ef3f96ec3ec9cb01ce60f6ba8"
+      }
+    },
+    "baseline_mae": 0.3341901616603214,
+    "train_labels_sha256": "5a70b61cd84767e3479dabffa37e0e7c0d2774ed184139c94dacf33e116d080e",
+    "code": {
+      "models_sha256": "6adf8e97d32b95d515e14fb96fcd09ce42512cf54b4472107382b4d123d47fa2",
+      "frozen_H4_1_model_helper_sha256": "895ebcee51a6ef5ff9e099a552ef0ceb4b58cc6a12f293b6367fc18c0b477b75",
+      "frozen_L0_model_source_sha256": "6a7fb6ead0fb28d8786b45235f5d226b547fbc3400ea9082f058c456726f958c",
+      "L1_data_source_sha256": "70a20055350832b862dc478d2bee2a316a3aa0966e730c75402110e32965177a",
+      "sandbox_sha256": "b93580670c1200e3b9d18225c223e4f7e8b0707d91cd05e7274679b4ec7bfcec",
+      "original_ast_policy_sha256": "a125890433a1ab69d3f060d4ea661392e5d46c37f711eb4b6eb938f23562912c",
+      "frozen_h3_hgb_source_sha256": "82dcea515ae515785df99d3aa106b4555f9a323d93c88814b7683c6d656553cb"
+    },
+    "parameters": {
+      "loss": "squared_error",
+      "learning_rate": 0.05,
+      "max_iter": 300,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 20,
+      "l2_regularization": 1.0,
+      "early_stopping": false,
+      "random_state": 20261018
+    },
+    "kept_feature_indices": [
+      11
+    ],
+    "delta_definition": "row validation MAE_without_minus_saved_full; positive beneficial",
+    "generated_feature_executions": 0,
+    "TEST_targets_or_feedback_used": false
+  },
+  "identity_sha256": "32760098eed17cec3029d4e491633e8baa1ff871751b5ff9811cb1090a24919c",
+  "seed": 1,
+  "round_index": 1,
+  "baseline_validation_mae": 0.3341901616603214,
+  "raw_features": [
+    {
+      "name": "log_volume_per_atom",
+      "source": "def feature(s):\n    t = s or {}\n    v = t.get('volume_per_atom_A3')\n    if v is None:\n        b = t.get('basic_structure_statistics') or {}\n        v = b.get('volume_per_atom_A3')\n    if v is None or not isfinite(v) or v <= 0:\n        return 0.0\n    return log1p(v)",
+      "description": "Logarithm of one plus volume per atom in cubic angstroms."
+    },
+    {
+      "name": "covalent_packing_fraction",
+      "source": "def feature(s):\n    t = s or {}\n    v = t.get('volume_per_atom_A3')\n    if v is None or v <= 0:\n        return 0.0\n    props = t.get('element_properties') or {}\n    total = 0.0\n    weight = 0.0\n    for el, x in (t.get('composition') or {}).items():\n        p = props.get(el) or {}\n        r = p.get('covalent_radius_A')\n        if x is not None and x > 0 and r is not None and r > 0:\n            total += x * r ** 3\n            weight += x\n    return 4.0 * pi * total / (3.0 * weight * v) if weight > 0 else 0.0",
+      "description": "Composition-averaged covalent sphere volume divided by volume per atom."
+    },
+    {
+      "name": "minimum_reduced_distance_mean",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    r = []\n    for x in sites:\n        a = (props.get(x.get('element')) or {}).get('covalent_radius_A')\n        r.append(a if a is not None and a > 0 else 0.0)\n    near = [inf] * n\n    for b in t.get('neighbors') or []:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0 and r[i] > 0 and r[j] > 0:\n            near[i] = min(near[i], d / (r[i] + r[j]))\n    w = sum(o[i] for i in range(n) if isfinite(near[i]))\n    return sum(o[i] * near[i] for i in range(n) if isfinite(near[i])) / w if w > 0 else 0.0",
+      "description": "Occupancy-weighted mean of each site's minimum distance divided by the sum of covalent radii."
+    },
+    {
+      "name": "minimum_reduced_distance_std",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    r = []\n    for x in sites:\n        a = (props.get(x.get('element')) or {}).get('covalent_radius_A')\n        r.append(a if a is not None and a > 0 else 0.0)\n    near = [inf] * n\n    for b in t.get('neighbors') or []:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0 and r[i] > 0 and r[j] > 0:\n            near[i] = min(near[i], d / (r[i] + r[j]))\n    w = sum(o[i] for i in range(n) if isfinite(near[i]))\n    if w <= 0:\n        return 0.0\n    mean = sum(o[i] * near[i] for i in range(n) if isfinite(near[i])) / w\n    return sqrt(sum(o[i] * (near[i] - mean) ** 2 for i in range(n) if isfinite(near[i])) / w)",
+      "description": "Occupancy-weighted dispersion of sitewise minimum radius-normalized distances."
+    },
+    {
+      "name": "soft_coordination_mean",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    c = [0.0] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i]:\n            c[i] += o[j] * exp(1.0 - (d / near[i]) ** 6)\n    w = sum(o)\n    return sum(o[i] * c[i] for i in range(n)) / w if w > 0 else 0.0",
+      "description": "Mean effective coordination using nearest-distance-scaled exponential contact weights."
+    },
+    {
+      "name": "soft_coordination_std",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    c = [0.0] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i]:\n            c[i] += o[j] * exp(1.0 - (d / near[i]) ** 6)\n    w = sum(o)\n    if w <= 0:\n        return 0.0\n    mean = sum(o[i] * c[i] for i in range(n)) / w\n    return sqrt(sum(o[i] * (c[i] - mean) ** 2 for i in range(n)) / w)",
+      "description": "Occupancy-weighted standard deviation of effective first-shell coordination."
+    },
+    {
+      "name": "contact_reduced_strain_rms",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    r = []\n    for x in sites:\n        a = (props.get(x.get('element')) or {}).get('covalent_radius_A')\n        r.append(a if a is not None and a > 0 else 0.0)\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i] and r[i] > 0 and r[j] > 0:\n            w = o[i] * o[j] * exp(1.0 - (d / near[i]) ** 6)\n            total += w * (d / (r[i] + r[j]) - 1.0) ** 2\n            weight += w\n    return sqrt(total / weight) if weight > 0 else 0.0",
+      "description": "Root-mean-square deviation of first-shell bond lengths from summed covalent radii."
+    },
+    {
+      "name": "heteroelement_contact_fraction",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i]:\n            w = o[i] * o[j] * exp(1.0 - (d / near[i]) ** 6)\n            weight += w\n            if sites[i].get('element') != sites[j].get('element'):\n                total += w\n    return total / weight if weight > 0 else 0.0",
+      "description": "Fraction of soft first-shell contact weight joining different elements."
+    },
+    {
+      "name": "contact_ionicity_mean",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    chi = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i] and chi[i] is not None and chi[j] is not None:\n            w = o[i] * o[j] * exp(1.0 - (d / near[i]) ** 6)\n            total += w * (1.0 - exp(-0.25 * (chi[i] - chi[j]) ** 2))\n            weight += w\n    return total / weight if weight > 0 else 0.0",
+      "description": "Soft-contact-weighted Pauling ionicity proxy, one minus exp of negative electronegativity contrast squared over four."
+    },
+    {
+      "name": "ionic_effective_coordination",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    chi = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    total = 0.0\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i] and chi[i] is not None and chi[j] is not None:\n            w = o[i] * o[j] * exp(1.0 - (d / near[i]) ** 6)\n            total += w * (1.0 - exp(-0.25 * (chi[i] - chi[j]) ** 2))\n    weight = sum(o[i] for i in range(n) if chi[i] is not None)\n    return total / weight if weight > 0 else 0.0",
+      "description": "Mean first-shell coordination weighted by the Pauling ionicity proxy."
+    },
+    {
+      "name": "normalized_contact_en_contrast",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    chi = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    mass = sum(o[i] for i in range(n) if chi[i] is not None)\n    if mass <= 0:\n        return 0.0\n    mean = sum(o[i] * chi[i] for i in range(n) if chi[i] is not None) / mass\n    var = sum(o[i] * (chi[i] - mean) ** 2 for i in range(n) if chi[i] is not None) / mass\n    if var <= 1e-12:\n        return 0.0\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i] and chi[i] is not None and chi[j] is not None:\n            w = o[i] * o[j] * exp(1.0 - (d / near[i]) ** 6)\n            total += w * (chi[i] - chi[j]) ** 2\n            weight += w\n    return total / (2.0 * var * weight) if weight > 0 else 0.0",
+      "description": "Contact electronegativity contrast normalized by the random-mixing composition variance."
+    },
+    {
+      "name": "valence_electron_density",
+      "source": "def feature(s):\n    t = s or {}\n    v = t.get('volume_per_atom_A3')\n    if v is None or v <= 0:\n        return 0.0\n    props = t.get('element_properties') or {}\n    total = 0.0\n    weight = 0.0\n    for el, x in (t.get('composition') or {}).items():\n        a = (props.get(el) or {}).get('valence_electrons')\n        if x is not None and x > 0 and a is not None:\n            total += x * a\n            weight += x\n    return total / (weight * v) if weight > 0 else 0.0",
+      "description": "H3-convention valence electrons per cubic angstrom."
+    },
+    {
+      "name": "heterocontact_charge_transfer_cost",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    ion = [(props.get(x.get('element')) or {}).get('first_ionization_energy_eV') for x in sites]\n    aff = [(props.get(x.get('element')) or {}).get('electron_affinity_eV') for x in sites]\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if not (0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i]):\n            continue\n        if sites[i].get('element') == sites[j].get('element'):\n            continue\n        costs = []\n        if ion[i] is not None and aff[j] is not None:\n            costs.append(ion[i] - aff[j])\n        if ion[j] is not None and aff[i] is not None:\n            costs.append(ion[j] - aff[i])\n        if costs:\n            w = o[i] * o[j] * exp(1.0 - (d / near[i]) ** 6)\n            total += w * min(costs)\n            weight += w\n    return total / weight if weight > 0 else 0.0",
+      "description": "Mean minimum neutral-atom ionization-minus-affinity cost across unlike-element first-shell contacts."
+    },
+    {
+      "name": "local_electronegativity_field_rms",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    chi = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    sums = [0.0] * n\n    weights = [0.0] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i] and chi[i] is not None and chi[j] is not None:\n            w = o[j] * exp(1.0 - (d / near[i]) ** 6)\n            sums[i] += w * chi[j]\n            weights[i] += w\n    total = 0.0\n    weight = 0.0\n    for i in range(n):\n        if weights[i] > 0 and chi[i] is not None:\n            total += o[i] * (sums[i] / weights[i] - chi[i]) ** 2\n            weight += o[i]\n    return sqrt(total / weight) if weight > 0 else 0.0",
+      "description": "RMS difference between site electronegativity and its soft first-shell mean electronegativity."
+    },
+    {
+      "name": "first_shell_radial_disorder",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    a = [0.0] * n\n    b2 = [0.0] * n\n    weights = [0.0] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i]:\n            w = o[j] * exp(1.0 - (d / near[i]) ** 6)\n            a[i] += w * d\n            b2[i] += w * d * d\n            weights[i] += w\n    total = 0.0\n    weight = 0.0\n    for i in range(n):\n        if weights[i] > 0 and a[i] > 0:\n            mean = a[i] / weights[i]\n            var = max(0.0, b2[i] / weights[i] - mean * mean)\n            total += o[i] * sqrt(var) / mean\n            weight += o[i]\n    return total / weight if weight > 0 else 0.0",
+      "description": "Mean local coefficient of variation of soft first-shell bond distances."
+    },
+    {
+      "name": "local_bond_direction_anisotropy",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    matrix = (t.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3:\n        return 0.0\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    tensors = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0] for i in range(n)]\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if not (0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i]):\n            continue\n        fi = sites[i].get('frac_coords')\n        fj = sites[j].get('frac_coords')\n        image = b.get('image')\n        if fi is None or fj is None or image is None:\n            continue\n        u = fj[0] + image[0] - fi[0]\n        v = fj[1] + image[1] - fi[1]\n        z = fj[2] + image[2] - fi[2]\n        x = u * matrix[0][0] + v * matrix[1][0] + z * matrix[2][0]\n        y = u * matrix[0][1] + v * matrix[1][1] + z * matrix[2][1]\n        zz = u * matrix[0][2] + v * matrix[1][2] + z * matrix[2][2]\n        norm2 = x * x + y * y + zz * zz\n        if norm2 <= 0:\n            continue\n        w = o[j] * exp(1.0 - (d / near[i]) ** 6) / norm2\n        a = tensors[i]\n        a[0] += w * x * x\n        a[1] += w * y * y\n        a[2] += w * zz * zz\n        a[3] += w * x * y\n        a[4] += w * x * zz\n        a[5] += w * y * zz\n    total = 0.0\n    weight = 0.0\n    for i in range(n):\n        a = tensors[i]\n        trace = a[0] + a[1] + a[2]\n        if trace > 0:\n            square = a[0] ** 2 + a[1] ** 2 + a[2] ** 2 + 2.0 * (a[3] ** 2 + a[4] ** 2 + a[5] ** 2)\n            value = max(0.0, min(1.0, 0.5 * (3.0 * square / (trace * trace) - 1.0)))\n            total += o[i] * value\n            weight += o[i]\n    return total / weight if weight > 0 else 0.0",
+      "description": "Mean rotationally invariant anisotropy of local first-shell bond-direction tensors."
+    },
+    {
+      "name": "composition_mixing_entropy",
+      "source": "def feature(s):\n    composition = (s or {}).get('composition') or {}\n    values = [x for x in composition.values() if x is not None and x > 0 and isfinite(x)]\n    total = sum(values)\n    if total <= 0:\n        return 0.0\n    return -sum((x / total) * log(x / total) for x in values)",
+      "description": "Ideal compositional mixing entropy divided by Boltzmann's constant."
+    },
+    {
+      "name": "nearest_neighbor_packing_shape",
+      "source": "def feature(s):\n    t = s or {}\n    v = t.get('volume_per_atom_A3')\n    if v is None or v <= 0:\n        return 0.0\n    sites = t.get('sites') or []\n    n = len(sites)\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    near = [inf] * n\n    for b in t.get('neighbors') or []:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    weight = sum(o[i] for i in range(n) if isfinite(near[i]))\n    return sum(o[i] * near[i] ** 3 for i in range(n) if isfinite(near[i])) / (weight * v) if weight > 0 else 0.0",
+      "description": "Occupancy-weighted mean nearest-neighbor distance cubed, divided by volume per atom."
+    },
+    {
+      "name": "polarity_strain_covariance",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    chi = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    r = []\n    for x in sites:\n        a = (props.get(x.get('element')) or {}).get('covalent_radius_A')\n        r.append(a if a is not None and a > 0 else 0.0)\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    neighbors = t.get('neighbors') or []\n    near = [inf] * n\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is not None and j is not None and d is not None and 0 <= i < n and 0 <= j < n and d > 0 and o[j] > 0:\n            near[i] = min(near[i], d)\n    weight = 0.0\n    sx = 0.0\n    sy = 0.0\n    sxy = 0.0\n    for b in neighbors:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and isfinite(near[i]) and d <= 1.5 * near[i] and r[i] > 0 and r[j] > 0 and chi[i] is not None and chi[j] is not None:\n            w = o[i] * o[j] * exp(1.0 - (d / near[i]) ** 6)\n            x = d / (r[i] + r[j]) - 1.0\n            y = abs(chi[i] - chi[j])\n            weight += w\n            sx += w * x\n            sy += w * y\n            sxy += w * x * y\n    return sxy / weight - (sx / weight) * (sy / weight) if weight > 0 else 0.0",
+      "description": "First-shell weighted covariance between reduced bond extension and absolute electronegativity contrast."
+    },
+    {
+      "name": "short_contact_compression_penalty",
+      "source": "def feature(s):\n    t = s or {}\n    sites = t.get('sites') or []\n    n = len(sites)\n    props = t.get('element_properties') or {}\n    o = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    r = []\n    for x in sites:\n        a = (props.get(x.get('element')) or {}).get('covalent_radius_A')\n        r.append(a if a is not None and a > 0 else 0.0)\n    total = 0.0\n    for b in t.get('neighbors') or []:\n        i, j, d = b.get('i'), b.get('j'), b.get('distance_A')\n        if i is None or j is None or d is None:\n            continue\n        if 0 <= i < n and 0 <= j < n and d > 0 and r[i] > 0 and r[j] > 0:\n            scale = r[i] + r[j]\n            if d < scale:\n                total += o[i] * o[j] * (1.0 - d / scale) ** 2\n    weight = sum(o)\n    return total / (2.0 * weight) if weight > 0 else 0.0",
+      "description": "Squared covalent-radius contact compression summed per atom, with directed pairs counted once."
+    }
+  ],
+  "contributions": [
+    {
+      "feature_index": 0,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 1,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 2,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 3,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 4,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 5,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 6,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 7,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 8,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 9,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 10,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 11,
+      "delta_without_minus_full": 0.0010863017162715538
+    },
+    {
+      "feature_index": 12,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 13,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 14,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 15,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 16,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 17,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 18,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 19,
+      "delta_without_minus_full": null
+    }
+  ],
+  "failures": [
+    {
+      "feature_index": 0,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 1,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "exception|NameError: name 'pi' is not defined": 458
+      }
+    },
+    {
+      "feature_index": 2,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 3,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 4,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 5,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 6,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 7,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 8,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 9,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 10,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 12,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 13,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 14,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 15,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 16,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 17,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 18,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    },
+    {
+      "feature_index": 19,
+      "phase": "inner_fit",
+      "failed_count": 458,
+      "total_count": 458,
+      "reasons": {
+        "ast_rejected": 458
+      }
+    }
+  ],
+  "retained_feature_count": 1,
+  "LOFO_fit_count": 1,
+  "feature_records": [
+    {
+      "feature_index": 11,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round01\\lofo\\feature11.json",
+      "record_sha256": "ea5793b7cd701c02817a5ed57c4bd7a14a18d8140af7c63aceaf28236d46af65"
+    }
+  ],
+  "artifacts": {
+    "feature11": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round01\\lofo\\feature11.json",
+      "sha256": "325500f5d2d5945bd21c26a4403a7d409be4f911dce210dd421a33f9cf33830f"
+    },
+    "feature11_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round01\\lofo\\feature11_validation.npz",
+      "sha256": "e781e15540cea45164284519ce88f1b6b07f54ee43c05c88dea8cb31b2bc69a1"
+    }
+  },
+  "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\rounds\\L1_seed1\\round01\\lofo\\lofo.json",
+  "elapsed_seconds": 3.8170270000118762,
+  "generated_feature_executions": 0,
+  "TEST_targets_or_feedback_used": false,
+  "record_sha256": "a54226cfbdc1f9d1d99bb80ef3bf071fa3698fadf9610fe093c31051ef25cd47"
+}

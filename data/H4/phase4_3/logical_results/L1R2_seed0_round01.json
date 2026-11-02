@@ -1,0 +1,163 @@
+{
+  "admissible_format_failure": false,
+  "cache_hit": false,
+  "cli_attempt_count": 1,
+  "completed_utc": "2026-10-31T22:19:01.163003Z",
+  "id": null,
+  "kind": "features_query_memory",
+  "last_call_index": 124,
+  "last_status": "ok",
+  "logical_elapsed_seconds": 145.34400000004098,
+  "rate_limit_transport_retries": 0,
+  "raw_response_text": null,
+  "request_fingerprint": "5fcbea46a19d8b1706707325a24994b3c7c0d29cd199056c8c224b84c6b4db51",
+  "request_id": "L1R2_seed0_round01",
+  "response": {
+    "features": [
+      {
+        "description": "Logarithm of volume per occupied atom in cubic angstroms.",
+        "name": "log_volume_per_atom",
+        "source": "def feature(s):\n    s = s or {}\n    v = s.get('volume_per_atom_A3')\n    if v is None or not isfinite(v) or v <= 0:\n        sites = s.get('sites') or []\n        total = 0.0\n        for t in sites:\n            o = t.get('occupancy')\n            total += max(0.0, o if o is not None else 1.0)\n        volume = (s.get('lattice') or {}).get('volume_A3')\n        if volume is None or total <= 0 or not isfinite(volume) or volume <= 0:\n            return 0.0\n        v = volume / total\n    return log(v)"
+      },
+      {
+        "description": "Occupied covalent-sphere volume divided by cell volume; spheres may overlap.",
+        "name": "covalent_packing_fraction",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    total = 0.0\n    spheres = 0.0\n    for t in sites:\n        o = t.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        p = props.get(t.get('element')) or {}\n        r = p.get('covalent_radius_A')\n        if r is None or not isfinite(r) or r <= 0:\n            r = 1.3\n        total += o\n        spheres += o * r * r * r\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is None or not isfinite(volume) or volume <= 0:\n        v = s.get('volume_per_atom_A3')\n        volume = v * total if v is not None and isfinite(v) and v > 0 else 0.0\n    return 4.0 * pi * spheres / (3.0 * volume) if volume > 0 else 0.0"
+      },
+      {
+        "description": "Shortest occupied periodic contact normalized by the sum of covalent radii.",
+        "name": "minimum_relative_contact",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    occ = []\n    for t in sites:\n        r = (props.get(t.get('element')) or {}).get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    best = inf\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[i] > 0 and occ[j] > 0 and d is not None and isfinite(d) and d > 0:\n            best = min(best, d / (radii[i] + radii[j]))\n    return best if isfinite(best) else 0.0"
+      },
+      {
+        "description": "Soft-contact-weighted mean bond length relative to summed covalent radii.",
+        "name": "soft_relative_bond_length",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    occ = []\n    for t in sites:\n        r = (props.get(t.get('element')) or {}).get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    numerator = 0.0\n    denominator = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n            numerator += w * x\n            denominator += w\n    return numerator / denominator if denominator > 0 else 0.0"
+      },
+      {
+        "description": "Logarithmic, cutoff-tapered inverse-twelfth-power overlap penalty per occupied atom.",
+        "name": "short_range_repulsion",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    occ = []\n    for t in sites:\n        r = (props.get(t.get('element')) or {}).get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    total = sum(occ)\n    energy = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and 0 < d < 6.0:\n            x = min(10.0, (radii[i] + radii[j]) / d)\n            energy += occ[i] * occ[j] * x ** 12 * (1.0 - d / 6.0) ** 2\n    return log1p(0.5 * energy / total) if total > 0 else 0.0"
+      },
+      {
+        "description": "Occupancy-weighted mean coordination using smooth covalent-radius contact weights.",
+        "name": "soft_coordination_mean",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    occ = []\n    for t in sites:\n        r = (props.get(t.get('element')) or {}).get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    coordination = [0.0 for t in sites]\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            coordination[i] += occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n    total = sum(occ)\n    return sum(occ[i] * coordination[i] for i in range(n)) / total if total > 0 else 0.0"
+      },
+      {
+        "description": "Coefficient of variation of smooth site coordination.",
+        "name": "soft_coordination_heterogeneity",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    occ = []\n    for t in sites:\n        r = (props.get(t.get('element')) or {}).get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    coordination = [0.0 for t in sites]\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            coordination[i] += occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n    total = sum(occ)\n    if total <= 0:\n        return 0.0\n    mean = sum(occ[i] * coordination[i] for i in range(n)) / total\n    variance = sum(occ[i] * (coordination[i] - mean) ** 2 for i in range(n)) / total\n    return sqrt(max(0.0, variance)) / mean if mean > 0 else 0.0"
+      },
+      {
+        "description": "Occupancy-weighted coefficient of variation of site nearest-neighbor distances.",
+        "name": "nearest_distance_heterogeneity",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = []\n    for t in sites:\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    nearest = [inf for t in sites]\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and isfinite(d) and d > 0:\n            nearest[i] = min(nearest[i], d)\n    total = sum(occ[i] for i in range(n) if isfinite(nearest[i]))\n    if total <= 0:\n        return 0.0\n    mean = sum(occ[i] * nearest[i] for i in range(n) if isfinite(nearest[i])) / total\n    variance = sum(occ[i] * (nearest[i] - mean) ** 2 for i in range(n) if isfinite(nearest[i])) / total\n    return sqrt(max(0.0, variance)) / mean if mean > 0 else 0.0"
+      },
+      {
+        "description": "Mean local radial distortion within 1.35 times each site's nearest-neighbor distance.",
+        "name": "first_shell_radial_distortion",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = []\n    for t in sites:\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    nearest = [inf for t in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and isfinite(d) and d > 0:\n            nearest[i] = min(nearest[i], d)\n    weights = [0.0 for t in sites]\n    first = [0.0 for t in sites]\n    second = [0.0 for t in sites]\n    for b in bonds:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and 0 < d <= 1.35 * nearest[i]:\n            weights[i] += occ[j]\n            first[i] += occ[j] * d\n            second[i] += occ[j] * d * d\n    result = 0.0\n    total = 0.0\n    for i in range(n):\n        if weights[i] > 0 and first[i] > 0:\n            mean = first[i] / weights[i]\n            variance = max(0.0, second[i] / weights[i] - mean * mean)\n            result += occ[i] * sqrt(variance) / mean\n            total += occ[i]\n    return result / total if total > 0 else 0.0"
+      },
+      {
+        "description": "Mean first-shell bond-direction tensor anisotropy, zero for isotropic coordination.",
+        "name": "first_shell_angular_anisotropy",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    n = len(sites)\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3 or any(len(row) != 3 for row in matrix):\n        return 0.0\n    occ = []\n    for t in sites:\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    nearest = [inf for t in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and isfinite(d) and d > 0:\n            nearest[i] = min(nearest[i], d)\n    tensors = [[0.0 for k in range(6)] for t in sites]\n    for b in bonds:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if not (0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and 0 < d <= 1.35 * nearest[i]):\n            continue\n        fi = sites[i].get('frac_coords')\n        fj = sites[j].get('frac_coords')\n        image = b.get('image')\n        if fi is None or fj is None or image is None or len(fi) != 3 or len(fj) != 3 or len(image) != 3:\n            continue\n        delta = [fj[k] + image[k] - fi[k] for k in range(3)]\n        v = [sum(delta[k] * matrix[k][a] for k in range(3)) for a in range(3)]\n        norm2 = sum(x * x for x in v)\n        if norm2 <= 0:\n            continue\n        w = occ[j] / norm2\n        tensors[i][0] += w * v[0] * v[0]\n        tensors[i][1] += w * v[1] * v[1]\n        tensors[i][2] += w * v[2] * v[2]\n        tensors[i][3] += w * v[0] * v[1]\n        tensors[i][4] += w * v[0] * v[2]\n        tensors[i][5] += w * v[1] * v[2]\n    result = 0.0\n    total = 0.0\n    for i in range(n):\n        a = tensors[i]\n        trace = a[0] + a[1] + a[2]\n        if trace > 0:\n            square = a[0] ** 2 + a[1] ** 2 + a[2] ** 2 + 2.0 * (a[3] ** 2 + a[4] ** 2 + a[5] ** 2)\n            value = max(0.0, min(1.0, 1.5 * square / (trace * trace) - 0.5))\n            result += occ[i] * value\n            total += occ[i]\n    return result / total if total > 0 else 0.0"
+      },
+      {
+        "description": "Soft-contact sum of squared electronegativity contrast divided by distance, per occupied atom.",
+        "name": "heteropolar_contact_strength",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    chi = []\n    occ = []\n    for t in sites:\n        p = props.get(t.get('element')) or {}\n        r = p.get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        x = p.get('eneg')\n        chi.append(x if x is not None and isfinite(x) else None)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    total = sum(occ)\n    result = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and chi[i] is not None and chi[j] is not None and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n            result += w * (chi[i] - chi[j]) ** 2 / d\n    return 0.5 * result / total if total > 0 else 0.0"
+      },
+      {
+        "description": "Short-contact electronegativity covariance relative to occupied-site electronegativity variance.",
+        "name": "electronegativity_contact_assortativity",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    chi = []\n    occ = []\n    for t in sites:\n        p = props.get(t.get('element')) or {}\n        r = p.get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        x = p.get('eneg')\n        chi.append(x if x is not None and isfinite(x) else None)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    total = sum(occ[i] for i in range(n) if chi[i] is not None)\n    if total <= 0:\n        return 0.0\n    mean = sum(occ[i] * chi[i] for i in range(n) if chi[i] is not None) / total\n    variance = sum(occ[i] * (chi[i] - mean) ** 2 for i in range(n) if chi[i] is not None) / total\n    if variance <= 1e-12:\n        return 0.0\n    numerator = 0.0\n    denominator = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and chi[i] is not None and chi[j] is not None and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n            numerator += w * (chi[i] - mean) * (chi[j] - mean)\n            denominator += w\n    return numerator / (denominator * variance) if denominator > 0 else 0.0"
+      },
+      {
+        "description": "Unlike-element soft-contact fraction minus its random-composition expectation.",
+        "name": "chemical_contact_order",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    occ = []\n    elements = []\n    counts = {}\n    for t in sites:\n        element = t.get('element')\n        elements.append(element)\n        r = (props.get(element) or {}).get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        o = t.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        occ.append(o)\n        counts[element] = counts.get(element, 0.0) + o\n    n = len(sites)\n    total = sum(occ)\n    if total <= 0:\n        return 0.0\n    expected = 1.0 - sum((v / total) ** 2 for v in counts.values())\n    unlike = 0.0\n    weight = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n            weight += w\n            if elements[i] != elements[j]:\n                unlike += w\n    return unlike / weight - expected if weight > 0 else 0.0"
+      },
+      {
+        "description": "Neutral electronegativity-equalization stabilization using ionization energy and electron affinity.",
+        "name": "hardness_equalization_stabilization",
+        "source": "def feature(s):\n    s = s or {}\n    props = s.get('element_properties') or {}\n    values = []\n    inverse = 0.0\n    numerator = 0.0\n    total = 0.0\n    for t in s.get('sites') or []:\n        p = props.get(t.get('element')) or {}\n        ion = p.get('first_ionization_energy_eV')\n        affinity = p.get('electron_affinity_eV')\n        if ion is None or not isfinite(ion) or ion <= 0:\n            continue\n        if affinity is None or not isfinite(affinity):\n            affinity = 0.0\n        x = 0.5 * (ion + affinity)\n        h = max(1.0, ion - affinity)\n        o = t.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        values.append((o, x, h))\n        inverse += o / h\n        numerator += o * x / h\n        total += o\n    if inverse <= 0 or total <= 0:\n        return 0.0\n    mu = numerator / inverse\n    return -0.5 * sum(o * (x - mu) ** 2 / h for o, x, h in values) / total"
+      },
+      {
+        "description": "Cutoff-tapered Coulomb pair proxy using neutral hardness-equalized charges, per occupied atom.",
+        "name": "screened_equalized_charge_energy",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    occ = []\n    chi = []\n    hardness = []\n    numerator = 0.0\n    inverse = 0.0\n    for t in sites:\n        o = t.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        occ.append(o)\n        p = props.get(t.get('element')) or {}\n        ion = p.get('first_ionization_energy_eV')\n        affinity = p.get('electron_affinity_eV')\n        if ion is None or not isfinite(ion) or ion <= 0:\n            chi.append(None)\n            hardness.append(1.0)\n            continue\n        if affinity is None or not isfinite(affinity):\n            affinity = 0.0\n        x = 0.5 * (ion + affinity)\n        h = max(1.0, ion - affinity)\n        chi.append(x)\n        hardness.append(h)\n        numerator += o * x / h\n        inverse += o / h\n    total = sum(occ)\n    if inverse <= 0 or total <= 0:\n        return 0.0\n    mu = numerator / inverse\n    n = len(sites)\n    charges = [(mu - chi[i]) / hardness[i] if chi[i] is not None else 0.0 for i in range(n)]\n    result = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and isfinite(d) and 0 < d < 6.0:\n            result += occ[i] * occ[j] * charges[i] * charges[j] * (1.0 - d / 6.0) ** 2 / d\n    return 0.5 * 14.3996 * result / total"
+      },
+      {
+        "description": "Across-site standard deviation of each site's mean soft-contact electronegativity contrast.",
+        "name": "local_polarity_heterogeneity",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    chi = []\n    occ = []\n    for t in sites:\n        p = props.get(t.get('element')) or {}\n        r = p.get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        x = p.get('eneg')\n        chi.append(x if x is not None and isfinite(x) else None)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    weights = [0.0 for t in sites]\n    contrast = [0.0 for t in sites]\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and chi[i] is not None and chi[j] is not None and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            w = occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n            weights[i] += w\n            contrast[i] += w * abs(chi[i] - chi[j])\n    total = sum(occ[i] for i in range(n) if weights[i] > 0)\n    if total <= 0:\n        return 0.0\n    mean = sum(occ[i] * contrast[i] / weights[i] for i in range(n) if weights[i] > 0) / total\n    variance = sum(occ[i] * (contrast[i] / weights[i] - mean) ** 2 for i in range(n) if weights[i] > 0) / total\n    return sqrt(max(0.0, variance))"
+      },
+      {
+        "description": "Soft-contact-weighted Pauling ionicity, bounded between zero and one.",
+        "name": "mean_contact_ionicity",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    chi = []\n    occ = []\n    for t in sites:\n        p = props.get(t.get('element')) or {}\n        r = p.get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        x = p.get('eneg')\n        chi.append(x if x is not None and isfinite(x) else None)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    numerator = 0.0\n    denominator = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and chi[i] is not None and chi[j] is not None and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n            numerator += w * (1.0 - exp(-0.25 * (chi[i] - chi[j]) ** 2))\n            denominator += w\n    return numerator / denominator if denominator > 0 else 0.0"
+      },
+      {
+        "description": "Mean relative distance gap from the nearest contact to the next shell beyond 1.10 times that distance.",
+        "name": "nearest_shell_separation",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = []\n    for t in sites:\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    nearest = [inf for t in sites]\n    next_shell = [inf for t in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and isfinite(d) and d > 0:\n            nearest[i] = min(nearest[i], d)\n    for b in bonds:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and isfinite(d) and d > 1.10 * nearest[i]:\n            next_shell[i] = min(next_shell[i], d)\n    total = 0.0\n    result = 0.0\n    for i in range(n):\n        if isfinite(nearest[i]) and isfinite(next_shell[i]) and nearest[i] > 0:\n            result += occ[i] * (next_shell[i] / nearest[i] - 1.0)\n            total += occ[i]\n    return result / total if total > 0 else 0.0"
+      },
+      {
+        "description": "H3-convention valence electrons per cubic angstrom from occupied sites.",
+        "name": "valence_electron_density",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    total = 0.0\n    known = 0.0\n    electrons = 0.0\n    for t in sites:\n        o = t.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        total += o\n        v = (props.get(t.get('element')) or {}).get('valence_electrons')\n        if v is not None and isfinite(v) and v >= 0:\n            electrons += o * v\n            known += o\n    if total <= 0 or known <= 0:\n        return 0.0\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is None or not isfinite(volume) or volume <= 0:\n        vpa = s.get('volume_per_atom_A3')\n        volume = vpa * total if vpa is not None and isfinite(vpa) and vpa > 0 else 0.0\n    return electrons * total / (known * volume) if volume > 0 else 0.0"
+      },
+      {
+        "description": "Soft-contact-weighted squared mismatch of supplied valence-subshell angular momentum.",
+        "name": "valence_subshell_contact_mismatch",
+        "source": "def feature(s):\n    s = s or {}\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = []\n    orbital = []\n    occ = []\n    for t in sites:\n        p = props.get(t.get('element')) or {}\n        r = p.get('covalent_radius_A')\n        radii.append(r if r is not None and isfinite(r) and r > 0 else 1.3)\n        shell = p.get('pymatgen_valence_subshell')\n        if shell is not None and len(shell) == 2 and shell[0] is not None and isfinite(shell[0]) and 0 <= shell[0] <= 3:\n            orbital.append(float(shell[0]))\n        else:\n            orbital.append(None)\n        o = t.get('occupancy')\n        occ.append(max(0.0, o if o is not None else 1.0))\n    n = len(sites)\n    numerator = 0.0\n    denominator = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and orbital[i] is not None and orbital[j] is not None and d is not None and isfinite(d) and d > 0:\n            x = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] * exp(max(-40.0, 1.0 - x ** 6))\n            numerator += w * (orbital[i] - orbital[j]) ** 2 / 9.0\n            denominator += w\n    return numerator / denominator if denominator > 0 else 0.0"
+      }
+    ],
+    "notes": "Finite-cutoff charge terms are screened local proxies, not Ewald energies. Missing covalent radii use 1.3 Å; missing electron affinities use zero; unavailable contacts return zero.",
+    "queries": [
+      {
+        "include_any": [
+          "Re",
+          "Np",
+          "Ir",
+          "Au"
+        ],
+        "n": 25
+      },
+      {
+        "include_any": [
+          "La",
+          "As",
+          "Sb",
+          "Ag",
+          "Tl",
+          "P"
+        ],
+        "n": 25
+      },
+      {
+        "include_all": [
+          "O"
+        ],
+        "include_any": [
+          "Li",
+          "Na",
+          "Cu",
+          "Mn"
+        ],
+        "n": 25,
+        "n_elements": [
+          4,
+          7
+        ]
+      }
+    ],
+    "rationale": "Add packing, coordination, chemical-order and charge-transfer descriptors beyond Magpie; sample rare heavy-element chemistries and multicomponent oxides highlighted by validation."
+  },
+  "response_sha256": "834c6521b358981bdf7ca1bc3268c2dbb38273113932cac7d860cbe3643a1918",
+  "seed": 0,
+  "status": "ok",
+  "validation_error": null
+}

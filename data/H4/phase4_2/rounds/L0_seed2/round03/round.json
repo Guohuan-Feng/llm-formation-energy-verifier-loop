@@ -1,0 +1,6507 @@
+{
+  "schema_version": "H4.2-model-validation-v1",
+  "status": "complete",
+  "identity": {
+    "protocol": "H4.2-dynamic-label-fixed-template-map-20rounds-v1",
+    "stage": "4.2",
+    "condition": "L0",
+    "seed": 2,
+    "phase": "round",
+    "round_index": 3,
+    "features": [
+      {
+        "name": "complete1",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    v = s.get('volume_per_atom_A3')\n    if v is None:\n        v = (s.get('basic_structure_statistics') or {}).get('volume_per_atom_A3')\n    if v is None:\n        sites = s.get('sites') or []\n        n = sum((x.get('occupancy') or 0.0) for x in sites)\n        volume = (s.get('lattice') or {}).get('volume_A3')\n        v = volume / n if volume is not None and n > 0 else 0.0\n    return log1p(max(0.0, v))",
+        "description": "Logarithmic volume per atom, with a lattice-volume fallback."
+      },
+      {
+        "name": "complete2",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is None or volume <= 0:\n        return 0.0\n    props = s.get('element_properties') or {}\n    total = 0.0\n    for site in s.get('sites') or []:\n        r = (props.get(site.get('element')) or {}).get('covalent_radius_A')\n        if r is not None and r > 0:\n            total += (site.get('occupancy') or 0.0) * r ** 3\n    return 4.0 * pi * total / (3.0 * volume)",
+        "description": "Occupied covalent-sphere volume divided by unit-cell volume."
+      },
+      {
+        "name": "complete3",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        r = radii[i] + radii[j]\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            nearest[i] = min(nearest[i], d / r)\n    vals = [v for v in nearest if isfinite(v)]\n    return sum(vals) / len(vals) if vals else 0.0",
+        "description": "Mean sitewise shortest distance normalized by the pair's covalent-radius sum."
+      },
+      {
+        "name": "complete4",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            nearest[i] = min(nearest[i], d / (radii[i] + radii[j]))\n    vals = [v for v in nearest if isfinite(v)]\n    if not vals:\n        return 0.0\n    mean = sum(vals) / len(vals)\n    return sqrt(sum((v - mean) ** 2 for v in vals) / len(vals))",
+        "description": "Sitewise dispersion of the shortest covalent-radius-normalized contact."
+      },
+      {
+        "name": "complete5",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    coord = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            coord[i] += occ[j] / (1.0 + q ** 12)\n    total = sum(occ)\n    return sum(o * c for o, c in zip(occ, coord)) / total if total > 0 else 0.0",
+        "description": "Mean smooth covalent coordination, including periodic images and occupancies."
+      },
+      {
+        "name": "complete6",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    coord = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            coord[i] += occ[j] / (1.0 + q ** 12)\n    total = sum(occ)\n    if total <= 0:\n        return 0.0\n    mean = sum(o * c for o, c in zip(occ, coord)) / total\n    variance = sum(o * (c - mean) ** 2 for o, c in zip(occ, coord)) / total\n    return sqrt(variance) / mean if mean > 0 else 0.0",
+        "description": "Coefficient of variation of smooth covalent coordination across sites."
+      },
+      {
+        "name": "complete7",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total = sum(occ)\n    penalty = 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (radii[i] + radii[j])\n            if q < 1.0:\n                penalty += occ[i] * occ[j] * (1.0 - q) ** 2\n    return penalty / (2.0 * total) if total > 0 else 0.0",
+        "description": "Per-atom squared covalent overlap penalty for compressed contacts."
+      },
+      {
+        "name": "complete8",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total, value = 0.0, 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[i] is not None and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[i] * occ[j] / (1.0 + q ** 12)\n            total += w\n            value += w * abs(en[i] - en[j])\n    return value / total if total > 0 else 0.0",
+        "description": "Smooth-contact-weighted mean electronegativity difference."
+      },
+      {
+        "name": "complete9",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    elements = [x.get('element') for x in sites]\n    radii = [((props.get(e) or {}).get('covalent_radius_A') or 0.0) for e in elements]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total, unlike = 0.0, 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[i] * occ[j] / (1.0 + q ** 12)\n            total += w\n            if elements[i] != elements[j]:\n                unlike += w\n    return unlike / total if total > 0 else 0.0",
+        "description": "Fraction of smooth covalent contact weight joining different elements."
+      },
+      {
+        "name": "complete10",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    elements = [x.get('element') for x in sites]\n    radii = [((props.get(e) or {}).get('covalent_radius_A') or 0.0) for e in elements]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total = sum(occ)\n    degree = 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if elements[i] == elements[j] and elements[i] in ('H', 'B', 'C', 'N', 'O', 'F', 'Si', 'P', 'S'):\n            if d is not None and d > 0 and radii[i] > 0:\n                q = d / (2.3 * radii[i])\n                degree += occ[i] * occ[j] / (1.0 + q ** 12)\n    return degree / total if total > 0 else 0.0",
+        "description": "Per-atom homonuclear covalent contact degree among light network and molecular elements."
+      },
+      {
+        "name": "complete11",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total = sum(occ)\n    value = 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[i] is not None and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[i] * occ[j] / (1.0 + q ** 12)\n            value += w * (en[i] - en[j]) ** 2 / d\n    return value / (2.0 * total) if total > 0 else 0.0",
+        "description": "Per-atom contact-weighted squared electronegativity contrast divided by separation."
+      },
+      {
+        "name": "complete12",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total, first, second = 0.0, 0.0, 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] / (1.0 + (q / 1.15) ** 12)\n            total += w\n            first += w * q\n            second += w * q * q\n    return sqrt(max(0.0, second / total - (first / total) ** 2)) if total > 0 else 0.0",
+        "description": "Smooth-contact-weighted dispersion of covalent-radius-normalized bond lengths."
+      },
+      {
+        "name": "complete13",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    weights = [0.0 for x in sites]\n    sums = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[i] is not None and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[j] / (1.0 + q ** 12)\n            weights[i] += w\n            sums[i] += w * en[j]\n    total, value = 0.0, 0.0\n    for i in range(len(sites)):\n        if weights[i] > 0 and en[i] is not None:\n            total += occ[i]\n            value += occ[i] * (en[i] - sums[i] / weights[i]) ** 2\n    return sqrt(value / total) if total > 0 else 0.0",
+        "description": "RMS site electronegativity mismatch against its smooth-contact neighbor average."
+      },
+      {
+        "name": "complete14",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    coord = [0.0 for x in sites]\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0 and d <= 1.2 * nearest[b['i']]:\n            coord[b['i']] += occ[b['j']]\n    total = sum(occ)\n    return sum(o * c for o, c in zip(occ, coord)) / total if total > 0 else 0.0",
+        "description": "Mean occupancy-weighted coordination within 1.2 times each site's nearest distance."
+      },
+      {
+        "name": "complete15",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    coord = [0.0 for x in sites]\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0 and d <= 1.2 * nearest[b['i']]:\n            coord[b['i']] += occ[b['j']]\n    total = sum(occ)\n    if total <= 0:\n        return 0.0\n    mean = sum(o * c for o, c in zip(occ, coord)) / total\n    return sqrt(sum(o * (c - mean) ** 2 for o, c in zip(occ, coord)) / total)",
+        "description": "Standard deviation of nearest-relative-shell coordination across sites."
+      },
+      {
+        "name": "complete16",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    nearest = [inf for x in sites]\n    outer = [6.0 for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    for b in bonds:\n        i = b['i']\n        d = b.get('distance_A')\n        if d is not None and d > 1.2 * nearest[i]:\n            outer[i] = min(outer[i], d)\n    total, value = 0.0, 0.0\n    for i in range(len(sites)):\n        if isfinite(nearest[i]) and nearest[i] > 0:\n            o = sites[i].get('occupancy') or 0.0\n            total += o\n            value += o * log(max(1.0, outer[i] / nearest[i]))\n    return value / total if total > 0 else 0.0",
+        "description": "Mean log separation between nearest distance and the next shell beyond 1.2 times it; censored at 6 Angstrom."
+      },
+      {
+        "name": "complete17",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3:\n        return 0.0\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    t = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]\n    for b in bonds:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is None or d <= 0 or d > 1.2 * nearest[i]:\n            continue\n        fi, fj, image = sites[i].get('frac_coords'), sites[j].get('frac_coords'), b.get('image')\n        if fi is None or fj is None or image is None:\n            continue\n        a = fj[0] + image[0] - fi[0]\n        c = fj[1] + image[1] - fi[1]\n        h = fj[2] + image[2] - fi[2]\n        x = a * matrix[0][0] + c * matrix[1][0] + h * matrix[2][0]\n        y = a * matrix[0][1] + c * matrix[1][1] + h * matrix[2][1]\n        z = a * matrix[0][2] + c * matrix[1][2] + h * matrix[2][2]\n        norm = x*x + y*y + z*z\n        if norm <= 0:\n            continue\n        w = (sites[i].get('occupancy') or 0.0) * (sites[j].get('occupancy') or 0.0) / norm\n        t[0] += w*x*x\n        t[1] += w*y*y\n        t[2] += w*z*z\n        t[3] += w*x*y\n        t[4] += w*x*z\n        t[5] += w*y*z\n    trace = t[0] + t[1] + t[2]\n    square = t[0]**2 + t[1]**2 + t[2]**2 + 2.0*(t[3]**2 + t[4]**2 + t[5]**2)\n    return sqrt(max(0.0, 1.5 * square / trace**2 - 0.5)) if trace > 0 else 0.0",
+        "description": "Rotationally invariant anisotropy of the global nearest-shell bond-direction tensor."
+      },
+      {
+        "name": "complete18",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3:\n        return 0.0\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    tensors = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0] for x in sites]\n    for b in bonds:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is None or d <= 0 or d > 1.2 * nearest[i]:\n            continue\n        fi, fj, image = sites[i].get('frac_coords'), sites[j].get('frac_coords'), b.get('image')\n        if fi is None or fj is None or image is None:\n            continue\n        a = fj[0] + image[0] - fi[0]\n        c = fj[1] + image[1] - fi[1]\n        h = fj[2] + image[2] - fi[2]\n        x = a * matrix[0][0] + c * matrix[1][0] + h * matrix[2][0]\n        y = a * matrix[0][1] + c * matrix[1][1] + h * matrix[2][1]\n        z = a * matrix[0][2] + c * matrix[1][2] + h * matrix[2][2]\n        norm = x*x + y*y + z*z\n        if norm <= 0:\n            continue\n        w = (sites[j].get('occupancy') or 0.0) / norm\n        t = tensors[i]\n        t[0] += w*x*x\n        t[1] += w*y*y\n        t[2] += w*z*z\n        t[3] += w*x*y\n        t[4] += w*x*z\n        t[5] += w*y*z\n    total, value = 0.0, 0.0\n    for i, t in enumerate(tensors):\n        trace = t[0] + t[1] + t[2]\n        if trace > 0:\n            square = t[0]**2 + t[1]**2 + t[2]**2 + 2.0*(t[3]**2 + t[4]**2 + t[5]**2)\n            o = sites[i].get('occupancy') or 0.0\n            total += o\n            value += o * sqrt(max(0.0, 1.5 * square / trace**2 - 0.5))\n    return value / total if total > 0 else 0.0",
+        "description": "Mean local nearest-shell bond-direction anisotropy, independent of orientation between sites."
+      },
+      {
+        "name": "complete19",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    weights = [0.0 for x in sites]\n    first = [0.0 for x in sites]\n    second = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[j] / (1.0 + q ** 12)\n            weights[i] += w\n            first[i] += w * en[j]\n            second[i] += w * en[j] ** 2\n    total, value = 0.0, 0.0\n    for i in range(len(sites)):\n        if weights[i] > 0:\n            total += occ[i]\n            value += occ[i] * max(0.0, second[i] / weights[i] - (first[i] / weights[i]) ** 2)\n    return value / total if total > 0 else 0.0",
+        "description": "Mean local variance of neighbor electronegativity under smooth covalent contact weights."
+      },
+      {
+        "name": "complete20",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    sites = s.get('sites') or []\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is not None and volume > 0 and sites:\n        electrons = 0.0\n        for site in sites:\n            v = (props.get(site.get('element')) or {}).get('valence_electrons')\n            if v is not None:\n                electrons += (site.get('occupancy') or 0.0) * v\n        return electrons / volume\n    vpa = s.get('volume_per_atom_A3')\n    if vpa is None or vpa <= 0:\n        return 0.0\n    electrons, total = 0.0, 0.0\n    for element, fraction in (s.get('composition') or {}).items():\n        v = (props.get(element) or {}).get('valence_electrons')\n        if fraction is not None and fraction > 0 and v is not None:\n            electrons += fraction * v\n            total += fraction\n    return electrons / (total * vpa) if total > 0 else 0.0",
+        "description": "Occupied H3-convention valence-electron count per cubic Angstrom."
+      }
+    ],
+    "train_ids": [
+      "H2-P-000012",
+      "H2-P-000017",
+      "H2-P-000033",
+      "H2-P-000048",
+      "H2-P-000060",
+      "H2-P-000061",
+      "H2-P-000063",
+      "H2-P-000072",
+      "H2-P-000073",
+      "H2-P-000096",
+      "H2-P-000097",
+      "H2-P-000106",
+      "H2-P-000107",
+      "H2-P-000114",
+      "H2-P-000130",
+      "H2-P-000136",
+      "H2-P-000155",
+      "H2-P-000170",
+      "H2-P-000174",
+      "H2-P-000190",
+      "H2-P-000193",
+      "H2-P-000202",
+      "H2-P-000206",
+      "H2-P-000209",
+      "H2-P-000221",
+      "H2-P-000224",
+      "H2-P-000229",
+      "H2-P-000238",
+      "H2-P-000242",
+      "H2-P-000246",
+      "H2-P-000266",
+      "H2-P-000268",
+      "H2-P-000273",
+      "H2-P-000279",
+      "H2-P-000280",
+      "H2-P-000287",
+      "H2-P-000299",
+      "H2-P-000311",
+      "H2-P-000323",
+      "H2-P-000342",
+      "H2-P-000347",
+      "H2-P-000351",
+      "H2-P-000359",
+      "H2-P-000370",
+      "H2-P-000375",
+      "H2-P-000376",
+      "H2-P-000377",
+      "H2-P-000392",
+      "H2-P-000393",
+      "H2-P-000397",
+      "H2-P-000405",
+      "H2-P-000410",
+      "H2-P-000418",
+      "H2-P-000421",
+      "H2-P-000422",
+      "H2-P-000423",
+      "H2-P-000426",
+      "H2-P-000427",
+      "H2-P-000429",
+      "H2-P-000432",
+      "H2-P-000436",
+      "H2-P-000437",
+      "H2-P-000442",
+      "H2-P-000446",
+      "H2-P-000448",
+      "H2-P-000449",
+      "H2-P-000466",
+      "H2-P-000473",
+      "H2-P-000474",
+      "H2-P-000480",
+      "H2-P-000491",
+      "H2-P-000495",
+      "H2-P-000506",
+      "H2-P-000509",
+      "H2-P-000522",
+      "H2-P-000523",
+      "H2-P-000528",
+      "H2-P-000540",
+      "H2-P-000546",
+      "H2-P-000552",
+      "H2-P-000554",
+      "H2-P-000560",
+      "H2-P-000583",
+      "H2-P-000599",
+      "H2-P-000604",
+      "H2-P-000607",
+      "H2-P-000619",
+      "H2-P-000620",
+      "H2-P-000678",
+      "H2-P-000680",
+      "H2-P-000708",
+      "H2-P-000730",
+      "H2-P-000747",
+      "H2-P-000748",
+      "H2-P-000756",
+      "H2-P-000758",
+      "H2-P-000772",
+      "H2-P-000786",
+      "H2-P-000789",
+      "H2-P-000796",
+      "H2-P-000802",
+      "H2-P-000806",
+      "H2-P-000809",
+      "H2-P-000817",
+      "H2-P-000826",
+      "H2-P-000827",
+      "H2-P-000840",
+      "H2-P-000853",
+      "H2-P-000856",
+      "H2-P-000858",
+      "H2-P-000864",
+      "H2-P-000888",
+      "H2-P-000890",
+      "H2-P-000904",
+      "H2-P-000907",
+      "H2-P-000915",
+      "H2-P-000918",
+      "H2-P-000920",
+      "H2-P-000924",
+      "H2-P-000929",
+      "H2-P-000939",
+      "H2-P-000944",
+      "H2-P-000965",
+      "H2-P-000981",
+      "H2-P-000983",
+      "H2-P-000984",
+      "H2-P-000985",
+      "H2-P-000995",
+      "H2-P-000997",
+      "H2-P-000999",
+      "H2-P-001012",
+      "H2-P-001016",
+      "H2-P-001017",
+      "H2-P-001019",
+      "H2-P-001027",
+      "H2-P-001032",
+      "H2-P-001044",
+      "H2-P-001051",
+      "H2-P-001052",
+      "H2-P-001055",
+      "H2-P-001062",
+      "H2-P-001065",
+      "H2-P-001066",
+      "H2-P-001069",
+      "H2-P-001073",
+      "H2-P-001075",
+      "H2-P-001099",
+      "H2-P-001104",
+      "H2-P-001106",
+      "H2-P-001138",
+      "H2-P-001141",
+      "H2-P-001155",
+      "H2-P-001158",
+      "H2-P-001173",
+      "H2-P-001179",
+      "H2-P-001193",
+      "H2-P-001208",
+      "H2-P-001211",
+      "H2-P-001214",
+      "H2-P-001224",
+      "H2-P-001227",
+      "H2-P-001231",
+      "H2-P-001239",
+      "H2-P-001240",
+      "H2-P-001248",
+      "H2-P-001252",
+      "H2-P-001255",
+      "H2-P-001261",
+      "H2-P-001268",
+      "H2-P-001269",
+      "H2-P-001270",
+      "H2-P-001272",
+      "H2-P-001276",
+      "H2-P-001277",
+      "H2-P-001279",
+      "H2-P-001283",
+      "H2-P-001285",
+      "H2-P-001287",
+      "H2-P-001305",
+      "H2-P-001308",
+      "H2-P-001310",
+      "H2-P-001313",
+      "H2-P-001327",
+      "H2-P-001330",
+      "H2-P-001334",
+      "H2-P-001343",
+      "H2-P-001344",
+      "H2-P-001348",
+      "H2-P-001357",
+      "H2-P-001360",
+      "H2-P-001370",
+      "H2-P-001382",
+      "H2-P-001387",
+      "H2-P-001392",
+      "H2-P-001395",
+      "H2-P-001399",
+      "H2-P-001411",
+      "H2-P-001412",
+      "H2-P-001425",
+      "H2-P-001432",
+      "H2-P-001436",
+      "H2-P-001449",
+      "H2-P-001450",
+      "H2-P-001469",
+      "H2-P-001484",
+      "H2-P-001490",
+      "H2-P-001491",
+      "H2-P-001494",
+      "H2-P-001497",
+      "H2-P-001502",
+      "H2-P-001512",
+      "H2-P-001520",
+      "H2-P-001533",
+      "H2-P-001534",
+      "H2-P-001542",
+      "H2-P-001552",
+      "H2-P-001554",
+      "H2-P-001556",
+      "H2-P-001559",
+      "H2-P-001574",
+      "H2-P-001586",
+      "H2-P-001598",
+      "H2-P-001607",
+      "H2-P-001626",
+      "H2-P-001630",
+      "H2-P-001632",
+      "H2-P-001633",
+      "H2-P-001665",
+      "H2-P-001669",
+      "H2-P-001678",
+      "H2-P-001692",
+      "H2-P-001695",
+      "H2-P-001711",
+      "H2-P-001726",
+      "H2-P-001769",
+      "H2-P-001776",
+      "H2-P-001793",
+      "H2-P-001794",
+      "H2-P-001811",
+      "H2-P-001819",
+      "H2-P-001821",
+      "H2-P-001822",
+      "H2-P-001824",
+      "H2-P-001829",
+      "H2-P-001831",
+      "H2-P-001835",
+      "H2-P-001853",
+      "H2-P-001861",
+      "H2-P-001868",
+      "H2-P-001880",
+      "H2-P-001896",
+      "H2-P-001899",
+      "H2-P-001913",
+      "H2-P-001915",
+      "H2-P-001916",
+      "H2-P-001917",
+      "H2-P-001920",
+      "H2-P-001928",
+      "H2-P-001944",
+      "H2-P-001945",
+      "H2-P-001947",
+      "H2-P-001948",
+      "H2-P-001968",
+      "H2-P-001969",
+      "H2-P-001972",
+      "H2-P-001979",
+      "H2-P-001987",
+      "H2-P-001990",
+      "H2-P-002001",
+      "H2-P-002007",
+      "H2-P-002008",
+      "H2-P-002013",
+      "H2-P-002015",
+      "H2-P-002020",
+      "H2-P-002024",
+      "H2-P-002026",
+      "H2-P-002028",
+      "H2-P-002029",
+      "H2-P-002064",
+      "H2-P-002082",
+      "H2-P-002112",
+      "H2-P-002144",
+      "H2-P-002155",
+      "H2-P-002165",
+      "H2-P-002178",
+      "H2-P-002193",
+      "H2-P-002196",
+      "H2-P-002197",
+      "H2-P-002198",
+      "H2-P-002204",
+      "H2-P-002206",
+      "H2-P-002207",
+      "H2-P-002212",
+      "H2-P-002222",
+      "H2-P-002234",
+      "H2-P-002235",
+      "H2-P-002236",
+      "H2-P-002239",
+      "H2-P-002253",
+      "H2-P-002266",
+      "H2-P-002279",
+      "H2-P-002283",
+      "H2-P-002287",
+      "H2-P-002293",
+      "H2-P-002295",
+      "H2-P-002300",
+      "H2-P-002306",
+      "H2-P-002310",
+      "H2-P-002314",
+      "H2-P-002328",
+      "H2-P-002331",
+      "H2-P-002333",
+      "H2-P-002345",
+      "H2-P-002360",
+      "H2-P-002362",
+      "H2-P-002363",
+      "H2-P-002366",
+      "H2-P-002370",
+      "H2-P-002403",
+      "H2-P-002409",
+      "H2-P-002411",
+      "H2-P-002423",
+      "H2-P-002425",
+      "H2-P-002428",
+      "H2-P-002437",
+      "H2-P-002440",
+      "H2-P-002443",
+      "H2-P-002461",
+      "H2-P-002463",
+      "H2-P-002466",
+      "H2-P-002467",
+      "H2-P-002468",
+      "H2-P-002479",
+      "H2-P-002489",
+      "H2-P-002502",
+      "H2-P-002508",
+      "H2-P-002512",
+      "H2-P-002515",
+      "H2-P-002523",
+      "H2-P-002525",
+      "H2-P-002537",
+      "H2-P-002542",
+      "H2-P-002551",
+      "H2-P-002554",
+      "H2-P-002573",
+      "H2-P-002576",
+      "H2-P-002577",
+      "H2-P-002584",
+      "H2-P-002590",
+      "H2-P-002591",
+      "H2-P-002623",
+      "H2-P-002626",
+      "H2-P-002635",
+      "H2-P-002646",
+      "H2-P-002654",
+      "H2-P-002677",
+      "H2-P-002697",
+      "H2-P-002715",
+      "H2-P-002717",
+      "H2-P-002721",
+      "H2-P-002723",
+      "H2-P-002724",
+      "H2-P-002725",
+      "H2-P-002747",
+      "H2-P-002753",
+      "H2-P-002761",
+      "H2-P-002763",
+      "H2-P-002770",
+      "H2-P-002774",
+      "H2-P-002775",
+      "H2-P-002776",
+      "H2-P-002779",
+      "H2-P-002793",
+      "H2-P-002800",
+      "H2-P-002802",
+      "H2-P-002808",
+      "H2-P-002820",
+      "H2-P-002829",
+      "H2-P-002830",
+      "H2-P-002843",
+      "H2-P-002846",
+      "H2-P-002855",
+      "H2-P-002858",
+      "H2-P-002860",
+      "H2-P-002870",
+      "H2-P-002876",
+      "H2-P-002880",
+      "H2-P-002882",
+      "H2-P-002883",
+      "H2-P-002884",
+      "H2-P-002897",
+      "H2-P-002901",
+      "H2-P-002908",
+      "H2-P-002912",
+      "H2-P-002921",
+      "H2-P-002928",
+      "H2-P-002929",
+      "H2-P-002930",
+      "H2-P-002945",
+      "H2-P-002949",
+      "H2-P-002955",
+      "H2-P-002967",
+      "H2-P-002986",
+      "H2-P-002993",
+      "H2-P-003018",
+      "H2-P-003021",
+      "H2-P-003027",
+      "H2-P-003030",
+      "H2-P-003040",
+      "H2-P-003047",
+      "H2-P-003049",
+      "H2-P-003062",
+      "H2-P-003090",
+      "H2-P-003091",
+      "H2-P-003099",
+      "H2-P-003100",
+      "H2-P-003110",
+      "H2-P-003113",
+      "H2-P-003114",
+      "H2-P-003116",
+      "H2-P-003119",
+      "H2-P-003120",
+      "H2-P-003134",
+      "H2-P-003136",
+      "H2-P-003138",
+      "H2-P-003146",
+      "H2-P-003175",
+      "H2-P-003181",
+      "H2-P-003182",
+      "H2-P-003190",
+      "H2-P-003203",
+      "H2-P-003209",
+      "H2-P-003210",
+      "H2-P-003213",
+      "H2-P-003219",
+      "H2-P-003232",
+      "H2-P-003249",
+      "H2-P-003250",
+      "H2-P-003256",
+      "H2-P-003258",
+      "H2-P-003263",
+      "H2-P-003270",
+      "H2-P-003274",
+      "H2-P-003297",
+      "H2-P-003298",
+      "H2-P-003311",
+      "H2-P-003317",
+      "H2-P-003324",
+      "H2-P-003330",
+      "H2-P-003333",
+      "H2-P-003346",
+      "H2-P-003347",
+      "H2-P-003353",
+      "H2-P-003375",
+      "H2-P-003397",
+      "H2-P-003402",
+      "H2-P-003403",
+      "H2-P-003405",
+      "H2-P-003412",
+      "H2-P-003413",
+      "H2-P-003418",
+      "H2-P-003419",
+      "H2-P-003420",
+      "H2-P-003434",
+      "H2-P-003436",
+      "H2-P-003449",
+      "H2-P-003455",
+      "H2-P-003460",
+      "H2-P-003467",
+      "H2-P-003470",
+      "H2-P-003471",
+      "H2-P-003477",
+      "H2-P-003490",
+      "H2-P-003516",
+      "H2-P-003517",
+      "H2-P-003530",
+      "H2-P-003533",
+      "H2-P-003536",
+      "H2-P-003546",
+      "H2-P-003550",
+      "H2-P-003553",
+      "H2-P-003569",
+      "H2-P-003573",
+      "H2-P-003607",
+      "H2-P-003613",
+      "H2-P-003615",
+      "H2-P-003621",
+      "H2-P-003622",
+      "H2-P-003646",
+      "H2-P-003662",
+      "H2-P-003666",
+      "H2-P-003674",
+      "H2-P-003678",
+      "H2-P-003697",
+      "H2-P-003706",
+      "H2-P-003708",
+      "H2-P-003715",
+      "H2-P-003743",
+      "H2-P-003754",
+      "H2-P-003763",
+      "H2-P-003769",
+      "H2-P-003773",
+      "H2-P-003807",
+      "H2-P-003812",
+      "H2-P-003815",
+      "H2-P-003830",
+      "H2-P-003834",
+      "H2-P-003856",
+      "H2-P-003858",
+      "H2-P-003861",
+      "H2-P-003865",
+      "H2-P-003867",
+      "H2-P-003871",
+      "H2-P-003875",
+      "H2-P-003885",
+      "H2-P-003899",
+      "H2-P-003902",
+      "H2-P-003904",
+      "H2-P-003911",
+      "H2-P-003914",
+      "H2-P-003915",
+      "H2-P-003916",
+      "H2-P-003926",
+      "H2-P-003930",
+      "H2-P-003933",
+      "H2-P-003937",
+      "H2-P-003940",
+      "H2-P-003942",
+      "H2-P-003944",
+      "H2-P-003957",
+      "H2-P-003963",
+      "H2-P-003967",
+      "H2-P-003971",
+      "H2-P-003975",
+      "H2-P-004032",
+      "H2-P-004055",
+      "H2-P-004061",
+      "H2-P-004075",
+      "H2-P-004077",
+      "H2-P-004079",
+      "H2-P-004081",
+      "H2-P-004094",
+      "H2-P-004115",
+      "H2-P-004116",
+      "H2-P-004121",
+      "H2-P-004123",
+      "H2-P-004137",
+      "H2-P-004152",
+      "H2-P-004162",
+      "H2-P-004164",
+      "H2-P-004165",
+      "H2-P-004170",
+      "H2-P-004171",
+      "H2-P-004174",
+      "H2-P-004185",
+      "H2-P-004191",
+      "H2-P-004196",
+      "H2-P-004232",
+      "H2-P-004238",
+      "H2-P-004246",
+      "H2-P-004249",
+      "H2-P-004257",
+      "H2-P-004260",
+      "H2-P-004264",
+      "H2-P-004267",
+      "H2-P-004268",
+      "H2-P-004269",
+      "H2-P-004285",
+      "H2-P-004290",
+      "H2-P-004292",
+      "H2-P-004299",
+      "H2-P-004301",
+      "H2-P-004302",
+      "H2-P-004315",
+      "H2-P-004323",
+      "H2-P-004329",
+      "H2-P-004331",
+      "H2-P-004332",
+      "H2-P-004347",
+      "H2-P-004350",
+      "H2-P-004369",
+      "H2-P-004373",
+      "H2-P-004384",
+      "H2-P-004385",
+      "H2-P-004391",
+      "H2-P-004393",
+      "H2-P-004400",
+      "H2-P-004406",
+      "H2-P-004414",
+      "H2-P-004418",
+      "H2-P-004424",
+      "H2-P-004433",
+      "H2-P-004434",
+      "H2-P-004438",
+      "H2-P-004439",
+      "H2-P-004452",
+      "H2-P-004469",
+      "H2-P-004475",
+      "H2-P-004509",
+      "H2-P-004532",
+      "H2-P-004549",
+      "H2-P-004554",
+      "H2-P-004557",
+      "H2-P-004564",
+      "H2-P-004570",
+      "H2-P-004577",
+      "H2-P-004587",
+      "H2-P-004588",
+      "H2-P-004591",
+      "H2-P-004595",
+      "H2-P-004612",
+      "H2-P-004617",
+      "H2-P-004618",
+      "H2-P-004623",
+      "H2-P-004632",
+      "H2-P-004635",
+      "H2-P-004638",
+      "H2-P-004641",
+      "H2-P-004649",
+      "H2-P-004667",
+      "H2-P-004679",
+      "H2-P-004680",
+      "H2-P-004681",
+      "H2-P-004695",
+      "H2-P-004711",
+      "H2-P-004712",
+      "H2-P-004727",
+      "H2-P-004730",
+      "H2-P-004732",
+      "H2-P-004748",
+      "H2-P-004766",
+      "H2-P-004775",
+      "H2-P-004782",
+      "H2-P-004797",
+      "H2-P-004799",
+      "H2-P-004803",
+      "H2-P-004804",
+      "H2-P-004807",
+      "H2-P-004808",
+      "H2-P-004823",
+      "H2-P-004839",
+      "H2-P-004845",
+      "H2-P-004856",
+      "H2-P-004858",
+      "H2-P-004876",
+      "H2-P-004879",
+      "H2-P-004882",
+      "H2-P-004885",
+      "H2-P-004886",
+      "H2-P-004888",
+      "H2-P-004900",
+      "H2-P-004901",
+      "H2-P-004902",
+      "H2-P-004906",
+      "H2-P-004915",
+      "H2-P-004935",
+      "H2-P-004957",
+      "H2-P-004960",
+      "H2-P-004969",
+      "H2-P-004972",
+      "H2-P-004981",
+      "H2-P-004988",
+      "H2-P-004990",
+      "H2-P-004991",
+      "H2-P-004996",
+      "H2-P-005004",
+      "H2-P-005014",
+      "H2-P-005016",
+      "H2-P-005018",
+      "H2-P-005019",
+      "H2-P-005022",
+      "H2-P-005023",
+      "H2-P-005026",
+      "H2-P-005029",
+      "H2-P-005031",
+      "H2-P-005064",
+      "H2-P-005065",
+      "H2-P-005069",
+      "H2-P-005072",
+      "H2-P-005073",
+      "H2-P-005082",
+      "H2-P-005089",
+      "H2-P-005102",
+      "H2-P-005103",
+      "H2-P-005110",
+      "H2-P-005111",
+      "H2-P-005115",
+      "H2-P-005121",
+      "H2-P-005130",
+      "H2-P-005154",
+      "H2-P-005157",
+      "H2-P-005161",
+      "H2-P-005166",
+      "H2-P-005170",
+      "H2-P-005174",
+      "H2-P-005176",
+      "H2-P-005178",
+      "H2-P-005189",
+      "H2-P-005204",
+      "H2-P-005228",
+      "H2-P-005252",
+      "H2-P-005266",
+      "H2-P-005272",
+      "H2-P-005274",
+      "H2-P-005276",
+      "H2-P-005277",
+      "H2-P-005278",
+      "H2-P-005283",
+      "H2-P-005285",
+      "H2-P-005286",
+      "H2-P-005289",
+      "H2-P-005299",
+      "H2-P-005301",
+      "H2-P-005307",
+      "H2-P-005315",
+      "H2-P-005319",
+      "H2-P-005327",
+      "H2-P-005341",
+      "H2-P-005349",
+      "H2-P-005360",
+      "H2-P-005361",
+      "H2-P-005365",
+      "H2-P-005395",
+      "H2-P-005398",
+      "H2-P-005402"
+    ],
+    "fit_ids": [
+      "H2-P-000012",
+      "H2-P-000017",
+      "H2-P-000033",
+      "H2-P-000048",
+      "H2-P-000060",
+      "H2-P-000063",
+      "H2-P-000072",
+      "H2-P-000073",
+      "H2-P-000096",
+      "H2-P-000097",
+      "H2-P-000106",
+      "H2-P-000136",
+      "H2-P-000155",
+      "H2-P-000170",
+      "H2-P-000174",
+      "H2-P-000193",
+      "H2-P-000209",
+      "H2-P-000221",
+      "H2-P-000224",
+      "H2-P-000229",
+      "H2-P-000242",
+      "H2-P-000246",
+      "H2-P-000266",
+      "H2-P-000279",
+      "H2-P-000280",
+      "H2-P-000287",
+      "H2-P-000299",
+      "H2-P-000311",
+      "H2-P-000323",
+      "H2-P-000342",
+      "H2-P-000347",
+      "H2-P-000351",
+      "H2-P-000359",
+      "H2-P-000375",
+      "H2-P-000376",
+      "H2-P-000392",
+      "H2-P-000397",
+      "H2-P-000405",
+      "H2-P-000418",
+      "H2-P-000421",
+      "H2-P-000422",
+      "H2-P-000423",
+      "H2-P-000426",
+      "H2-P-000427",
+      "H2-P-000429",
+      "H2-P-000436",
+      "H2-P-000437",
+      "H2-P-000442",
+      "H2-P-000446",
+      "H2-P-000448",
+      "H2-P-000466",
+      "H2-P-000473",
+      "H2-P-000474",
+      "H2-P-000480",
+      "H2-P-000491",
+      "H2-P-000495",
+      "H2-P-000509",
+      "H2-P-000522",
+      "H2-P-000523",
+      "H2-P-000528",
+      "H2-P-000540",
+      "H2-P-000546",
+      "H2-P-000552",
+      "H2-P-000554",
+      "H2-P-000560",
+      "H2-P-000583",
+      "H2-P-000599",
+      "H2-P-000604",
+      "H2-P-000607",
+      "H2-P-000619",
+      "H2-P-000620",
+      "H2-P-000678",
+      "H2-P-000680",
+      "H2-P-000708",
+      "H2-P-000730",
+      "H2-P-000747",
+      "H2-P-000748",
+      "H2-P-000758",
+      "H2-P-000772",
+      "H2-P-000786",
+      "H2-P-000789",
+      "H2-P-000796",
+      "H2-P-000806",
+      "H2-P-000809",
+      "H2-P-000817",
+      "H2-P-000826",
+      "H2-P-000827",
+      "H2-P-000840",
+      "H2-P-000853",
+      "H2-P-000856",
+      "H2-P-000858",
+      "H2-P-000888",
+      "H2-P-000890",
+      "H2-P-000904",
+      "H2-P-000907",
+      "H2-P-000915",
+      "H2-P-000918",
+      "H2-P-000920",
+      "H2-P-000929",
+      "H2-P-000944",
+      "H2-P-000965",
+      "H2-P-000981",
+      "H2-P-000983",
+      "H2-P-000984",
+      "H2-P-000985",
+      "H2-P-000995",
+      "H2-P-000997",
+      "H2-P-000999",
+      "H2-P-001016",
+      "H2-P-001017",
+      "H2-P-001019",
+      "H2-P-001027",
+      "H2-P-001044",
+      "H2-P-001062",
+      "H2-P-001066",
+      "H2-P-001069",
+      "H2-P-001073",
+      "H2-P-001099",
+      "H2-P-001104",
+      "H2-P-001106",
+      "H2-P-001141",
+      "H2-P-001155",
+      "H2-P-001179",
+      "H2-P-001193",
+      "H2-P-001208",
+      "H2-P-001211",
+      "H2-P-001214",
+      "H2-P-001224",
+      "H2-P-001231",
+      "H2-P-001239",
+      "H2-P-001248",
+      "H2-P-001252",
+      "H2-P-001255",
+      "H2-P-001268",
+      "H2-P-001269",
+      "H2-P-001272",
+      "H2-P-001276",
+      "H2-P-001277",
+      "H2-P-001279",
+      "H2-P-001283",
+      "H2-P-001285",
+      "H2-P-001287",
+      "H2-P-001305",
+      "H2-P-001308",
+      "H2-P-001310",
+      "H2-P-001313",
+      "H2-P-001327",
+      "H2-P-001330",
+      "H2-P-001343",
+      "H2-P-001344",
+      "H2-P-001348",
+      "H2-P-001357",
+      "H2-P-001360",
+      "H2-P-001370",
+      "H2-P-001382",
+      "H2-P-001387",
+      "H2-P-001392",
+      "H2-P-001395",
+      "H2-P-001399",
+      "H2-P-001411",
+      "H2-P-001412",
+      "H2-P-001425",
+      "H2-P-001432",
+      "H2-P-001449",
+      "H2-P-001450",
+      "H2-P-001469",
+      "H2-P-001484",
+      "H2-P-001490",
+      "H2-P-001491",
+      "H2-P-001494",
+      "H2-P-001497",
+      "H2-P-001502",
+      "H2-P-001512",
+      "H2-P-001520",
+      "H2-P-001533",
+      "H2-P-001534",
+      "H2-P-001542",
+      "H2-P-001554",
+      "H2-P-001556",
+      "H2-P-001574",
+      "H2-P-001586",
+      "H2-P-001598",
+      "H2-P-001607",
+      "H2-P-001626",
+      "H2-P-001632",
+      "H2-P-001633",
+      "H2-P-001665",
+      "H2-P-001669",
+      "H2-P-001678",
+      "H2-P-001692",
+      "H2-P-001695",
+      "H2-P-001726",
+      "H2-P-001776",
+      "H2-P-001793",
+      "H2-P-001794",
+      "H2-P-001811",
+      "H2-P-001819",
+      "H2-P-001822",
+      "H2-P-001829",
+      "H2-P-001831",
+      "H2-P-001835",
+      "H2-P-001853",
+      "H2-P-001861",
+      "H2-P-001868",
+      "H2-P-001880",
+      "H2-P-001896",
+      "H2-P-001899",
+      "H2-P-001913",
+      "H2-P-001915",
+      "H2-P-001916",
+      "H2-P-001917",
+      "H2-P-001928",
+      "H2-P-001944",
+      "H2-P-001948",
+      "H2-P-001968",
+      "H2-P-001969",
+      "H2-P-001972",
+      "H2-P-001979",
+      "H2-P-001987",
+      "H2-P-001990",
+      "H2-P-002007",
+      "H2-P-002008",
+      "H2-P-002013",
+      "H2-P-002015",
+      "H2-P-002020",
+      "H2-P-002024",
+      "H2-P-002026",
+      "H2-P-002028",
+      "H2-P-002064",
+      "H2-P-002082",
+      "H2-P-002112",
+      "H2-P-002155",
+      "H2-P-002165",
+      "H2-P-002178",
+      "H2-P-002193",
+      "H2-P-002197",
+      "H2-P-002204",
+      "H2-P-002206",
+      "H2-P-002207",
+      "H2-P-002212",
+      "H2-P-002234",
+      "H2-P-002235",
+      "H2-P-002236",
+      "H2-P-002239",
+      "H2-P-002253",
+      "H2-P-002266",
+      "H2-P-002283",
+      "H2-P-002287",
+      "H2-P-002293",
+      "H2-P-002295",
+      "H2-P-002306",
+      "H2-P-002310",
+      "H2-P-002328",
+      "H2-P-002331",
+      "H2-P-002333",
+      "H2-P-002345",
+      "H2-P-002360",
+      "H2-P-002362",
+      "H2-P-002366",
+      "H2-P-002370",
+      "H2-P-002403",
+      "H2-P-002409",
+      "H2-P-002411",
+      "H2-P-002423",
+      "H2-P-002425",
+      "H2-P-002428",
+      "H2-P-002437",
+      "H2-P-002440",
+      "H2-P-002443",
+      "H2-P-002461",
+      "H2-P-002466",
+      "H2-P-002468",
+      "H2-P-002479",
+      "H2-P-002489",
+      "H2-P-002502",
+      "H2-P-002508",
+      "H2-P-002512",
+      "H2-P-002523",
+      "H2-P-002525",
+      "H2-P-002537",
+      "H2-P-002542",
+      "H2-P-002551",
+      "H2-P-002554",
+      "H2-P-002573",
+      "H2-P-002576",
+      "H2-P-002577",
+      "H2-P-002584",
+      "H2-P-002590",
+      "H2-P-002623",
+      "H2-P-002626",
+      "H2-P-002635",
+      "H2-P-002646",
+      "H2-P-002677",
+      "H2-P-002697",
+      "H2-P-002715",
+      "H2-P-002721",
+      "H2-P-002723",
+      "H2-P-002724",
+      "H2-P-002747",
+      "H2-P-002753",
+      "H2-P-002761",
+      "H2-P-002763",
+      "H2-P-002770",
+      "H2-P-002775",
+      "H2-P-002776",
+      "H2-P-002793",
+      "H2-P-002800",
+      "H2-P-002802",
+      "H2-P-002808",
+      "H2-P-002829",
+      "H2-P-002830",
+      "H2-P-002843",
+      "H2-P-002846",
+      "H2-P-002855",
+      "H2-P-002860",
+      "H2-P-002870",
+      "H2-P-002880",
+      "H2-P-002884",
+      "H2-P-002897",
+      "H2-P-002912",
+      "H2-P-002921",
+      "H2-P-002929",
+      "H2-P-002930",
+      "H2-P-002949",
+      "H2-P-002955",
+      "H2-P-002967",
+      "H2-P-002986",
+      "H2-P-002993",
+      "H2-P-003018",
+      "H2-P-003021",
+      "H2-P-003027",
+      "H2-P-003030",
+      "H2-P-003047",
+      "H2-P-003049",
+      "H2-P-003062",
+      "H2-P-003090",
+      "H2-P-003091",
+      "H2-P-003100",
+      "H2-P-003113",
+      "H2-P-003114",
+      "H2-P-003116",
+      "H2-P-003119",
+      "H2-P-003120",
+      "H2-P-003138",
+      "H2-P-003146",
+      "H2-P-003175",
+      "H2-P-003181",
+      "H2-P-003182",
+      "H2-P-003190",
+      "H2-P-003209",
+      "H2-P-003210",
+      "H2-P-003213",
+      "H2-P-003219",
+      "H2-P-003232",
+      "H2-P-003256",
+      "H2-P-003263",
+      "H2-P-003270",
+      "H2-P-003274",
+      "H2-P-003297",
+      "H2-P-003311",
+      "H2-P-003317",
+      "H2-P-003324",
+      "H2-P-003330",
+      "H2-P-003333",
+      "H2-P-003346",
+      "H2-P-003347",
+      "H2-P-003402",
+      "H2-P-003403",
+      "H2-P-003405",
+      "H2-P-003412",
+      "H2-P-003413",
+      "H2-P-003418",
+      "H2-P-003419",
+      "H2-P-003420",
+      "H2-P-003434",
+      "H2-P-003449",
+      "H2-P-003455",
+      "H2-P-003460",
+      "H2-P-003467",
+      "H2-P-003470",
+      "H2-P-003471",
+      "H2-P-003477",
+      "H2-P-003490",
+      "H2-P-003517",
+      "H2-P-003530",
+      "H2-P-003546",
+      "H2-P-003550",
+      "H2-P-003553",
+      "H2-P-003569",
+      "H2-P-003573",
+      "H2-P-003607",
+      "H2-P-003613",
+      "H2-P-003615",
+      "H2-P-003621",
+      "H2-P-003622",
+      "H2-P-003646",
+      "H2-P-003662",
+      "H2-P-003674",
+      "H2-P-003678",
+      "H2-P-003706",
+      "H2-P-003708",
+      "H2-P-003715",
+      "H2-P-003743",
+      "H2-P-003754",
+      "H2-P-003763",
+      "H2-P-003769",
+      "H2-P-003773",
+      "H2-P-003815",
+      "H2-P-003830",
+      "H2-P-003834",
+      "H2-P-003858",
+      "H2-P-003865",
+      "H2-P-003867",
+      "H2-P-003871",
+      "H2-P-003875",
+      "H2-P-003885",
+      "H2-P-003899",
+      "H2-P-003902",
+      "H2-P-003911",
+      "H2-P-003914",
+      "H2-P-003915",
+      "H2-P-003916",
+      "H2-P-003926",
+      "H2-P-003930",
+      "H2-P-003933",
+      "H2-P-003937",
+      "H2-P-003940",
+      "H2-P-003944",
+      "H2-P-003957",
+      "H2-P-003963",
+      "H2-P-003971",
+      "H2-P-003975",
+      "H2-P-004032",
+      "H2-P-004055",
+      "H2-P-004061",
+      "H2-P-004075",
+      "H2-P-004077",
+      "H2-P-004079",
+      "H2-P-004081",
+      "H2-P-004094",
+      "H2-P-004123",
+      "H2-P-004137",
+      "H2-P-004162",
+      "H2-P-004164",
+      "H2-P-004170",
+      "H2-P-004171",
+      "H2-P-004174",
+      "H2-P-004185",
+      "H2-P-004191",
+      "H2-P-004196",
+      "H2-P-004232",
+      "H2-P-004238",
+      "H2-P-004249",
+      "H2-P-004257",
+      "H2-P-004260",
+      "H2-P-004264",
+      "H2-P-004267",
+      "H2-P-004268",
+      "H2-P-004285",
+      "H2-P-004299",
+      "H2-P-004301",
+      "H2-P-004302",
+      "H2-P-004315",
+      "H2-P-004329",
+      "H2-P-004331",
+      "H2-P-004332",
+      "H2-P-004347",
+      "H2-P-004350",
+      "H2-P-004369",
+      "H2-P-004373",
+      "H2-P-004384",
+      "H2-P-004391",
+      "H2-P-004393",
+      "H2-P-004400",
+      "H2-P-004406",
+      "H2-P-004414",
+      "H2-P-004418",
+      "H2-P-004433",
+      "H2-P-004434",
+      "H2-P-004438",
+      "H2-P-004439",
+      "H2-P-004452",
+      "H2-P-004469",
+      "H2-P-004475",
+      "H2-P-004509",
+      "H2-P-004532",
+      "H2-P-004549",
+      "H2-P-004554",
+      "H2-P-004557",
+      "H2-P-004564",
+      "H2-P-004570",
+      "H2-P-004577",
+      "H2-P-004587",
+      "H2-P-004588",
+      "H2-P-004591",
+      "H2-P-004612",
+      "H2-P-004618",
+      "H2-P-004623",
+      "H2-P-004632",
+      "H2-P-004635",
+      "H2-P-004638",
+      "H2-P-004641",
+      "H2-P-004649",
+      "H2-P-004667",
+      "H2-P-004679",
+      "H2-P-004680",
+      "H2-P-004681",
+      "H2-P-004712",
+      "H2-P-004727",
+      "H2-P-004732",
+      "H2-P-004766",
+      "H2-P-004775",
+      "H2-P-004799",
+      "H2-P-004803",
+      "H2-P-004804",
+      "H2-P-004807",
+      "H2-P-004808",
+      "H2-P-004823",
+      "H2-P-004839",
+      "H2-P-004845",
+      "H2-P-004856",
+      "H2-P-004876",
+      "H2-P-004879",
+      "H2-P-004882",
+      "H2-P-004885",
+      "H2-P-004886",
+      "H2-P-004888",
+      "H2-P-004901",
+      "H2-P-004902",
+      "H2-P-004906",
+      "H2-P-004915",
+      "H2-P-004935",
+      "H2-P-004957",
+      "H2-P-004960",
+      "H2-P-004969",
+      "H2-P-004990",
+      "H2-P-004991",
+      "H2-P-004996",
+      "H2-P-005004",
+      "H2-P-005014",
+      "H2-P-005016",
+      "H2-P-005018",
+      "H2-P-005019",
+      "H2-P-005022",
+      "H2-P-005023",
+      "H2-P-005026",
+      "H2-P-005029",
+      "H2-P-005031",
+      "H2-P-005064",
+      "H2-P-005065",
+      "H2-P-005069",
+      "H2-P-005072",
+      "H2-P-005073",
+      "H2-P-005082",
+      "H2-P-005089",
+      "H2-P-005102",
+      "H2-P-005103",
+      "H2-P-005110",
+      "H2-P-005111",
+      "H2-P-005121",
+      "H2-P-005154",
+      "H2-P-005157",
+      "H2-P-005161",
+      "H2-P-005166",
+      "H2-P-005174",
+      "H2-P-005176",
+      "H2-P-005189",
+      "H2-P-005228",
+      "H2-P-005252",
+      "H2-P-005266",
+      "H2-P-005272",
+      "H2-P-005276",
+      "H2-P-005277",
+      "H2-P-005278",
+      "H2-P-005283",
+      "H2-P-005285",
+      "H2-P-005286",
+      "H2-P-005289",
+      "H2-P-005299",
+      "H2-P-005301",
+      "H2-P-005307",
+      "H2-P-005319",
+      "H2-P-005341",
+      "H2-P-005360",
+      "H2-P-005361",
+      "H2-P-005365",
+      "H2-P-005395",
+      "H2-P-005398",
+      "H2-P-005402"
+    ],
+    "val_ids": [
+      "H2-P-000061",
+      "H2-P-000107",
+      "H2-P-000114",
+      "H2-P-000130",
+      "H2-P-000190",
+      "H2-P-000202",
+      "H2-P-000206",
+      "H2-P-000238",
+      "H2-P-000268",
+      "H2-P-000273",
+      "H2-P-000370",
+      "H2-P-000377",
+      "H2-P-000393",
+      "H2-P-000410",
+      "H2-P-000432",
+      "H2-P-000449",
+      "H2-P-000506",
+      "H2-P-000756",
+      "H2-P-000802",
+      "H2-P-000864",
+      "H2-P-000924",
+      "H2-P-000939",
+      "H2-P-001012",
+      "H2-P-001032",
+      "H2-P-001051",
+      "H2-P-001052",
+      "H2-P-001055",
+      "H2-P-001065",
+      "H2-P-001075",
+      "H2-P-001138",
+      "H2-P-001158",
+      "H2-P-001173",
+      "H2-P-001227",
+      "H2-P-001240",
+      "H2-P-001261",
+      "H2-P-001270",
+      "H2-P-001334",
+      "H2-P-001436",
+      "H2-P-001552",
+      "H2-P-001559",
+      "H2-P-001630",
+      "H2-P-001711",
+      "H2-P-001769",
+      "H2-P-001821",
+      "H2-P-001824",
+      "H2-P-001920",
+      "H2-P-001945",
+      "H2-P-001947",
+      "H2-P-002001",
+      "H2-P-002029",
+      "H2-P-002144",
+      "H2-P-002196",
+      "H2-P-002198",
+      "H2-P-002222",
+      "H2-P-002279",
+      "H2-P-002300",
+      "H2-P-002314",
+      "H2-P-002363",
+      "H2-P-002463",
+      "H2-P-002467",
+      "H2-P-002515",
+      "H2-P-002591",
+      "H2-P-002654",
+      "H2-P-002717",
+      "H2-P-002725",
+      "H2-P-002774",
+      "H2-P-002779",
+      "H2-P-002820",
+      "H2-P-002858",
+      "H2-P-002876",
+      "H2-P-002882",
+      "H2-P-002883",
+      "H2-P-002901",
+      "H2-P-002908",
+      "H2-P-002928",
+      "H2-P-002945",
+      "H2-P-003040",
+      "H2-P-003099",
+      "H2-P-003110",
+      "H2-P-003134",
+      "H2-P-003136",
+      "H2-P-003203",
+      "H2-P-003249",
+      "H2-P-003250",
+      "H2-P-003258",
+      "H2-P-003298",
+      "H2-P-003353",
+      "H2-P-003375",
+      "H2-P-003397",
+      "H2-P-003436",
+      "H2-P-003516",
+      "H2-P-003533",
+      "H2-P-003536",
+      "H2-P-003666",
+      "H2-P-003697",
+      "H2-P-003807",
+      "H2-P-003812",
+      "H2-P-003856",
+      "H2-P-003861",
+      "H2-P-003904",
+      "H2-P-003942",
+      "H2-P-003967",
+      "H2-P-004115",
+      "H2-P-004116",
+      "H2-P-004121",
+      "H2-P-004152",
+      "H2-P-004165",
+      "H2-P-004246",
+      "H2-P-004269",
+      "H2-P-004290",
+      "H2-P-004292",
+      "H2-P-004323",
+      "H2-P-004385",
+      "H2-P-004424",
+      "H2-P-004595",
+      "H2-P-004617",
+      "H2-P-004695",
+      "H2-P-004711",
+      "H2-P-004730",
+      "H2-P-004748",
+      "H2-P-004782",
+      "H2-P-004797",
+      "H2-P-004858",
+      "H2-P-004900",
+      "H2-P-004972",
+      "H2-P-004981",
+      "H2-P-004988",
+      "H2-P-005115",
+      "H2-P-005130",
+      "H2-P-005170",
+      "H2-P-005178",
+      "H2-P-005204",
+      "H2-P-005274",
+      "H2-P-005315",
+      "H2-P-005327",
+      "H2-P-005349"
+    ],
+    "train_labels_sha256": "2236047f001d596f26fa9ce2ff7daa46623ec0e56e63e9134310172240481e34",
+    "train_magpie132_sha256": "596b3101ae8059b12c9719bd89d6c046badbf9cfefd7a3124d612e4317ad3b33",
+    "fixed_template_assignment_sha256": "4428cc5b1f0c57b75e9b24d2fd7bd17d62746efd549fc4d279f99eabdc89d2c8",
+    "fixed_template_assignment_cutoff": {
+      "sha256": "37d79a0c82b23f1d2a41589d090a371cc01f7907c6f3523a75316368131875c3",
+      "group": "mb-eform-116589"
+    },
+    "frozen_data_source_hashes": {
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H2\\split_manifest.json": "4338ea2e745a1f8b984027447868e7ee6b7e473b511bdc50d0f0a906f045527c",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H3\\plan.json": "f8b26b357b3b29e00bd53833a1ad496a86d68c28850ef770b8ab4d03c43aadb7",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H3\\representation_metadata.json": "eb483fd171b59e452073e518da920cdc5b9324f44a6a15a5ef4602b57d7d8a57",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H3\\base_features.npz": "959edc479904c1111a2b5ac101be26d7ffcb7e672fb03ef615125182bfe3fb18",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H3\\label_free_structures.jsonl.gz": "42aaec0e112fa63b69443750dc9e9c0cb3b13591884418c7084601b4f26aaefe",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H3\\cgcnn\\plan.json": "bcc650722c254341a0548f9c2bbba5eef20b22e32e39e28690ae0c84656aff35",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H2\\synthetic_records_private.json.gz": "565b58ae3335b9b4eda5f3cbf35f6b63d4b49a8eb1ba24161ea34fb68e20d0bd",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\H2_formal_dataset\\metrics.json": "c09ad8d71ba2b18ac78aeaf52b3fbcfd8117206d8cea4af9149840be82423442",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\metadata\\spacegroups.json": "b3ec148941b9d1558decff59cf3142f9d29e9fb3ac2a396868f6094e2f353f2a",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\stage4_1_public_snapshot\\config.json": "a6d5be305410739857d87ebc37826590b0e4ed4f75b36047eb820f49653e3ee5",
+      "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_1\\evaluation_started.json": "bf10fec3f634c9fac8c1db29e25279b5cd54c0272631a2d6396b03a838ce7c98"
+    },
+    "parameters": {
+      "loss": "squared_error",
+      "learning_rate": 0.05,
+      "max_iter": 300,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 20,
+      "l2_regularization": 1.0,
+      "early_stopping": false,
+      "random_state": 20261018
+    },
+    "code": {
+      "models_sha256": "6a7fb6ead0fb28d8786b45235f5d226b547fbc3400ea9082f058c456726f958c",
+      "frozen_H4_1_model_helper_sha256": "895ebcee51a6ef5ff9e099a552ef0ceb4b58cc6a12f293b6367fc18c0b477b75",
+      "sandbox_sha256": "b93580670c1200e3b9d18225c223e4f7e8b0707d91cd05e7274679b4ec7bfcec",
+      "original_ast_policy_sha256": "a125890433a1ab69d3f060d4ea661392e5d46c37f711eb4b6eb938f23562912c",
+      "frozen_h3_hgb_source_sha256": "82dcea515ae515785df99d3aa106b4555f9a323d93c88814b7683c6d656553cb"
+    },
+    "failure_rate_threshold": 0.2,
+    "sandbox_workers": 2,
+    "deadline_ms": 50,
+    "selection_metric": "unweighted current-round validation row MAE",
+    "TEST_target_values_read": false
+  },
+  "identity_sha256": "65af65bccfad13b55ad1ec0103173944abe617c4389a56e639a5babce1de5d1d",
+  "stage": "4.2",
+  "condition": "L0",
+  "phase": "round",
+  "seed": 2,
+  "round_index": 3,
+  "features": [
+    {
+      "name": "complete1",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    v = s.get('volume_per_atom_A3')\n    if v is None:\n        v = (s.get('basic_structure_statistics') or {}).get('volume_per_atom_A3')\n    if v is None:\n        sites = s.get('sites') or []\n        n = sum((x.get('occupancy') or 0.0) for x in sites)\n        volume = (s.get('lattice') or {}).get('volume_A3')\n        v = volume / n if volume is not None and n > 0 else 0.0\n    return log1p(max(0.0, v))",
+      "description": "Logarithmic volume per atom, with a lattice-volume fallback."
+    },
+    {
+      "name": "complete2",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is None or volume <= 0:\n        return 0.0\n    props = s.get('element_properties') or {}\n    total = 0.0\n    for site in s.get('sites') or []:\n        r = (props.get(site.get('element')) or {}).get('covalent_radius_A')\n        if r is not None and r > 0:\n            total += (site.get('occupancy') or 0.0) * r ** 3\n    return 4.0 * pi * total / (3.0 * volume)",
+      "description": "Occupied covalent-sphere volume divided by unit-cell volume."
+    },
+    {
+      "name": "complete3",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        r = radii[i] + radii[j]\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            nearest[i] = min(nearest[i], d / r)\n    vals = [v for v in nearest if isfinite(v)]\n    return sum(vals) / len(vals) if vals else 0.0",
+      "description": "Mean sitewise shortest distance normalized by the pair's covalent-radius sum."
+    },
+    {
+      "name": "complete4",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            nearest[i] = min(nearest[i], d / (radii[i] + radii[j]))\n    vals = [v for v in nearest if isfinite(v)]\n    if not vals:\n        return 0.0\n    mean = sum(vals) / len(vals)\n    return sqrt(sum((v - mean) ** 2 for v in vals) / len(vals))",
+      "description": "Sitewise dispersion of the shortest covalent-radius-normalized contact."
+    },
+    {
+      "name": "complete5",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    coord = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            coord[i] += occ[j] / (1.0 + q ** 12)\n    total = sum(occ)\n    return sum(o * c for o, c in zip(occ, coord)) / total if total > 0 else 0.0",
+      "description": "Mean smooth covalent coordination, including periodic images and occupancies."
+    },
+    {
+      "name": "complete6",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    coord = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            coord[i] += occ[j] / (1.0 + q ** 12)\n    total = sum(occ)\n    if total <= 0:\n        return 0.0\n    mean = sum(o * c for o, c in zip(occ, coord)) / total\n    variance = sum(o * (c - mean) ** 2 for o, c in zip(occ, coord)) / total\n    return sqrt(variance) / mean if mean > 0 else 0.0",
+      "description": "Coefficient of variation of smooth covalent coordination across sites."
+    },
+    {
+      "name": "complete7",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total = sum(occ)\n    penalty = 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (radii[i] + radii[j])\n            if q < 1.0:\n                penalty += occ[i] * occ[j] * (1.0 - q) ** 2\n    return penalty / (2.0 * total) if total > 0 else 0.0",
+      "description": "Per-atom squared covalent overlap penalty for compressed contacts."
+    },
+    {
+      "name": "complete8",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total, value = 0.0, 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[i] is not None and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[i] * occ[j] / (1.0 + q ** 12)\n            total += w\n            value += w * abs(en[i] - en[j])\n    return value / total if total > 0 else 0.0",
+      "description": "Smooth-contact-weighted mean electronegativity difference."
+    },
+    {
+      "name": "complete9",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    elements = [x.get('element') for x in sites]\n    radii = [((props.get(e) or {}).get('covalent_radius_A') or 0.0) for e in elements]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total, unlike = 0.0, 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[i] * occ[j] / (1.0 + q ** 12)\n            total += w\n            if elements[i] != elements[j]:\n                unlike += w\n    return unlike / total if total > 0 else 0.0",
+      "description": "Fraction of smooth covalent contact weight joining different elements."
+    },
+    {
+      "name": "complete10",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    elements = [x.get('element') for x in sites]\n    radii = [((props.get(e) or {}).get('covalent_radius_A') or 0.0) for e in elements]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total = sum(occ)\n    degree = 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if elements[i] == elements[j] and elements[i] in ('H', 'B', 'C', 'N', 'O', 'F', 'Si', 'P', 'S'):\n            if d is not None and d > 0 and radii[i] > 0:\n                q = d / (2.3 * radii[i])\n                degree += occ[i] * occ[j] / (1.0 + q ** 12)\n    return degree / total if total > 0 else 0.0",
+      "description": "Per-atom homonuclear covalent contact degree among light network and molecular elements."
+    },
+    {
+      "name": "complete11",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total = sum(occ)\n    value = 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[i] is not None and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[i] * occ[j] / (1.0 + q ** 12)\n            value += w * (en[i] - en[j]) ** 2 / d\n    return value / (2.0 * total) if total > 0 else 0.0",
+      "description": "Per-atom contact-weighted squared electronegativity contrast divided by separation."
+    },
+    {
+      "name": "complete12",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    total, first, second = 0.0, 0.0, 0.0\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0:\n            q = d / (radii[i] + radii[j])\n            w = occ[i] * occ[j] / (1.0 + (q / 1.15) ** 12)\n            total += w\n            first += w * q\n            second += w * q * q\n    return sqrt(max(0.0, second / total - (first / total) ** 2)) if total > 0 else 0.0",
+      "description": "Smooth-contact-weighted dispersion of covalent-radius-normalized bond lengths."
+    },
+    {
+      "name": "complete13",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    weights = [0.0 for x in sites]\n    sums = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[i] is not None and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[j] / (1.0 + q ** 12)\n            weights[i] += w\n            sums[i] += w * en[j]\n    total, value = 0.0, 0.0\n    for i in range(len(sites)):\n        if weights[i] > 0 and en[i] is not None:\n            total += occ[i]\n            value += occ[i] * (en[i] - sums[i] / weights[i]) ** 2\n    return sqrt(value / total) if total > 0 else 0.0",
+      "description": "RMS site electronegativity mismatch against its smooth-contact neighbor average."
+    },
+    {
+      "name": "complete14",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    coord = [0.0 for x in sites]\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0 and d <= 1.2 * nearest[b['i']]:\n            coord[b['i']] += occ[b['j']]\n    total = sum(occ)\n    return sum(o * c for o, c in zip(occ, coord)) / total if total > 0 else 0.0",
+      "description": "Mean occupancy-weighted coordination within 1.2 times each site's nearest distance."
+    },
+    {
+      "name": "complete15",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    coord = [0.0 for x in sites]\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0 and d <= 1.2 * nearest[b['i']]:\n            coord[b['i']] += occ[b['j']]\n    total = sum(occ)\n    if total <= 0:\n        return 0.0\n    mean = sum(o * c for o, c in zip(occ, coord)) / total\n    return sqrt(sum(o * (c - mean) ** 2 for o, c in zip(occ, coord)) / total)",
+      "description": "Standard deviation of nearest-relative-shell coordination across sites."
+    },
+    {
+      "name": "complete16",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    nearest = [inf for x in sites]\n    outer = [6.0 for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    for b in bonds:\n        i = b['i']\n        d = b.get('distance_A')\n        if d is not None and d > 1.2 * nearest[i]:\n            outer[i] = min(outer[i], d)\n    total, value = 0.0, 0.0\n    for i in range(len(sites)):\n        if isfinite(nearest[i]) and nearest[i] > 0:\n            o = sites[i].get('occupancy') or 0.0\n            total += o\n            value += o * log(max(1.0, outer[i] / nearest[i]))\n    return value / total if total > 0 else 0.0",
+      "description": "Mean log separation between nearest distance and the next shell beyond 1.2 times it; censored at 6 Angstrom."
+    },
+    {
+      "name": "complete17",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3:\n        return 0.0\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    t = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]\n    for b in bonds:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is None or d <= 0 or d > 1.2 * nearest[i]:\n            continue\n        fi, fj, image = sites[i].get('frac_coords'), sites[j].get('frac_coords'), b.get('image')\n        if fi is None or fj is None or image is None:\n            continue\n        a = fj[0] + image[0] - fi[0]\n        c = fj[1] + image[1] - fi[1]\n        h = fj[2] + image[2] - fi[2]\n        x = a * matrix[0][0] + c * matrix[1][0] + h * matrix[2][0]\n        y = a * matrix[0][1] + c * matrix[1][1] + h * matrix[2][1]\n        z = a * matrix[0][2] + c * matrix[1][2] + h * matrix[2][2]\n        norm = x*x + y*y + z*z\n        if norm <= 0:\n            continue\n        w = (sites[i].get('occupancy') or 0.0) * (sites[j].get('occupancy') or 0.0) / norm\n        t[0] += w*x*x\n        t[1] += w*y*y\n        t[2] += w*z*z\n        t[3] += w*x*y\n        t[4] += w*x*z\n        t[5] += w*y*z\n    trace = t[0] + t[1] + t[2]\n    square = t[0]**2 + t[1]**2 + t[2]**2 + 2.0*(t[3]**2 + t[4]**2 + t[5]**2)\n    return sqrt(max(0.0, 1.5 * square / trace**2 - 0.5)) if trace > 0 else 0.0",
+      "description": "Rotationally invariant anisotropy of the global nearest-shell bond-direction tensor."
+    },
+    {
+      "name": "complete18",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3:\n        return 0.0\n    nearest = [inf for x in sites]\n    bonds = s.get('neighbors') or []\n    for b in bonds:\n        d = b.get('distance_A')\n        if d is not None and d > 0:\n            nearest[b['i']] = min(nearest[b['i']], d)\n    tensors = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0] for x in sites]\n    for b in bonds:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is None or d <= 0 or d > 1.2 * nearest[i]:\n            continue\n        fi, fj, image = sites[i].get('frac_coords'), sites[j].get('frac_coords'), b.get('image')\n        if fi is None or fj is None or image is None:\n            continue\n        a = fj[0] + image[0] - fi[0]\n        c = fj[1] + image[1] - fi[1]\n        h = fj[2] + image[2] - fi[2]\n        x = a * matrix[0][0] + c * matrix[1][0] + h * matrix[2][0]\n        y = a * matrix[0][1] + c * matrix[1][1] + h * matrix[2][1]\n        z = a * matrix[0][2] + c * matrix[1][2] + h * matrix[2][2]\n        norm = x*x + y*y + z*z\n        if norm <= 0:\n            continue\n        w = (sites[j].get('occupancy') or 0.0) / norm\n        t = tensors[i]\n        t[0] += w*x*x\n        t[1] += w*y*y\n        t[2] += w*z*z\n        t[3] += w*x*y\n        t[4] += w*x*z\n        t[5] += w*y*z\n    total, value = 0.0, 0.0\n    for i, t in enumerate(tensors):\n        trace = t[0] + t[1] + t[2]\n        if trace > 0:\n            square = t[0]**2 + t[1]**2 + t[2]**2 + 2.0*(t[3]**2 + t[4]**2 + t[5]**2)\n            o = sites[i].get('occupancy') or 0.0\n            total += o\n            value += o * sqrt(max(0.0, 1.5 * square / trace**2 - 0.5))\n    return value / total if total > 0 else 0.0",
+      "description": "Mean local nearest-shell bond-direction anisotropy, independent of orientation between sites."
+    },
+    {
+      "name": "complete19",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    props = s.get('element_properties') or {}\n    radii = [((props.get(x.get('element')) or {}).get('covalent_radius_A') or 0.0) for x in sites]\n    en = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [(x.get('occupancy') or 0.0) for x in sites]\n    weights = [0.0 for x in sites]\n    first = [0.0 for x in sites]\n    second = [0.0 for x in sites]\n    for b in s.get('neighbors') or []:\n        i, j = b['i'], b['j']\n        d = b.get('distance_A')\n        if d is not None and d > 0 and radii[i] > 0 and radii[j] > 0 and en[j] is not None:\n            q = d / (1.15 * (radii[i] + radii[j]))\n            w = occ[j] / (1.0 + q ** 12)\n            weights[i] += w\n            first[i] += w * en[j]\n            second[i] += w * en[j] ** 2\n    total, value = 0.0, 0.0\n    for i in range(len(sites)):\n        if weights[i] > 0:\n            total += occ[i]\n            value += occ[i] * max(0.0, second[i] / weights[i] - (first[i] / weights[i]) ** 2)\n    return value / total if total > 0 else 0.0",
+      "description": "Mean local variance of neighbor electronegativity under smooth covalent contact weights."
+    },
+    {
+      "name": "complete20",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    sites = s.get('sites') or []\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is not None and volume > 0 and sites:\n        electrons = 0.0\n        for site in sites:\n            v = (props.get(site.get('element')) or {}).get('valence_electrons')\n            if v is not None:\n                electrons += (site.get('occupancy') or 0.0) * v\n        return electrons / volume\n    vpa = s.get('volume_per_atom_A3')\n    if vpa is None or vpa <= 0:\n        return 0.0\n    electrons, total = 0.0, 0.0\n    for element, fraction in (s.get('composition') or {}).items():\n        v = (props.get(element) or {}).get('valence_electrons')\n        if fraction is not None and fraction > 0 and v is not None:\n            electrons += fraction * v\n            total += fraction\n    return electrons / (total * vpa) if total > 0 else 0.0",
+      "description": "Occupied H3-convention valence-electron count per cubic Angstrom."
+    }
+  ],
+  "active_features": [],
+  "winner_eligible": true,
+  "labelled_count": 725,
+  "fit_count": 589,
+  "validation_count": 136,
+  "validation_mae": 0.34968864170440467,
+  "validation_group_mae": 0.3413446268293259,
+  "worst20_ids": [
+    "H2-P-003397",
+    "H2-P-005178",
+    "H2-P-001711",
+    "H2-P-002279",
+    "H2-P-003099",
+    "H2-P-004988",
+    "H2-P-004595",
+    "H2-P-003249",
+    "H2-P-002196",
+    "H2-P-002515",
+    "H2-P-003807",
+    "H2-P-003861",
+    "H2-P-005204",
+    "H2-P-004269",
+    "H2-P-004900",
+    "H2-P-000864",
+    "H2-P-003136",
+    "H2-P-005115",
+    "H2-P-001920",
+    "H2-P-001436"
+  ],
+  "worst20": [
+    {
+      "id": "H2-P-003397",
+      "prediction_eV_per_atom": 0.755243719362909,
+      "label_eV_per_atom": 2.8495642414331046,
+      "absolute_error_eV_per_atom": 2.0943205220701957
+    },
+    {
+      "id": "H2-P-005178",
+      "prediction_eV_per_atom": 0.15174975898145954,
+      "label_eV_per_atom": -1.2716946726041671,
+      "absolute_error_eV_per_atom": 1.4234444315856267
+    },
+    {
+      "id": "H2-P-001711",
+      "prediction_eV_per_atom": 0.27472468253996934,
+      "label_eV_per_atom": -1.0933244752815758,
+      "absolute_error_eV_per_atom": 1.3680491578215452
+    },
+    {
+      "id": "H2-P-002279",
+      "prediction_eV_per_atom": 0.751493401738475,
+      "label_eV_per_atom": -0.602714054642334,
+      "absolute_error_eV_per_atom": 1.3542074563808089
+    },
+    {
+      "id": "H2-P-003099",
+      "prediction_eV_per_atom": -0.1975471497947349,
+      "label_eV_per_atom": 1.0660982050292978,
+      "absolute_error_eV_per_atom": 1.2636453548240327
+    },
+    {
+      "id": "H2-P-004988",
+      "prediction_eV_per_atom": -2.2798230582726315,
+      "label_eV_per_atom": -1.125318863138868,
+      "absolute_error_eV_per_atom": 1.1545041951337636
+    },
+    {
+      "id": "H2-P-004595",
+      "prediction_eV_per_atom": 0.6186544032369452,
+      "label_eV_per_atom": -0.5260412038704434,
+      "absolute_error_eV_per_atom": 1.1446956071073886
+    },
+    {
+      "id": "H2-P-003249",
+      "prediction_eV_per_atom": 1.4436619381450386,
+      "label_eV_per_atom": 0.42826352632254405,
+      "absolute_error_eV_per_atom": 1.0153984118224946
+    },
+    {
+      "id": "H2-P-002196",
+      "prediction_eV_per_atom": -0.44662482707494494,
+      "label_eV_per_atom": -1.4006655552300344,
+      "absolute_error_eV_per_atom": 0.9540407281550896
+    },
+    {
+      "id": "H2-P-002515",
+      "prediction_eV_per_atom": 0.5347505516782668,
+      "label_eV_per_atom": -0.39737924906735156,
+      "absolute_error_eV_per_atom": 0.9321298007456184
+    },
+    {
+      "id": "H2-P-003807",
+      "prediction_eV_per_atom": -2.314776985861178,
+      "label_eV_per_atom": -1.4111782617947055,
+      "absolute_error_eV_per_atom": 0.9035987240664727
+    },
+    {
+      "id": "H2-P-003861",
+      "prediction_eV_per_atom": -3.255955160476907,
+      "label_eV_per_atom": -2.3724754922695306,
+      "absolute_error_eV_per_atom": 0.8834796682073764
+    },
+    {
+      "id": "H2-P-005204",
+      "prediction_eV_per_atom": -0.3729161504021844,
+      "label_eV_per_atom": -1.1152184653938804,
+      "absolute_error_eV_per_atom": 0.742302314991696
+    },
+    {
+      "id": "H2-P-004269",
+      "prediction_eV_per_atom": -2.7818785641994546,
+      "label_eV_per_atom": -2.049659303783481,
+      "absolute_error_eV_per_atom": 0.7322192604159734
+    },
+    {
+      "id": "H2-P-004900",
+      "prediction_eV_per_atom": 0.9748041136111516,
+      "label_eV_per_atom": 0.24765397339257778,
+      "absolute_error_eV_per_atom": 0.7271501402185738
+    },
+    {
+      "id": "H2-P-000864",
+      "prediction_eV_per_atom": -0.16403201693265382,
+      "label_eV_per_atom": 0.544544418755696,
+      "absolute_error_eV_per_atom": 0.7085764356883498
+    },
+    {
+      "id": "H2-P-003136",
+      "prediction_eV_per_atom": -1.4099857385975454,
+      "label_eV_per_atom": -2.0899309199791656,
+      "absolute_error_eV_per_atom": 0.6799451813816202
+    },
+    {
+      "id": "H2-P-005115",
+      "prediction_eV_per_atom": -2.644748284316252,
+      "label_eV_per_atom": -3.2783720324837233,
+      "absolute_error_eV_per_atom": 0.6336237481674711
+    },
+    {
+      "id": "H2-P-001920",
+      "prediction_eV_per_atom": -0.6510627466000549,
+      "label_eV_per_atom": -0.025990027947319305,
+      "absolute_error_eV_per_atom": 0.6250727186527356
+    },
+    {
+      "id": "H2-P-001436",
+      "prediction_eV_per_atom": -2.702379322695546,
+      "label_eV_per_atom": -3.3156642861481767,
+      "absolute_error_eV_per_atom": 0.6132849634526307
+    }
+  ],
+  "inner_fit_features": {
+    "n_structures": 589,
+    "failure_rates": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "status_counts": {
+      "ast_rejected": 11191,
+      "exception": 589
+    },
+    "finite_cells": 0,
+    "total_cells": 11780
+  },
+  "validation_features": {
+    "n_structures": 136,
+    "failure_rates": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "status_counts": {
+      "ast_rejected": 2584,
+      "exception": 136
+    },
+    "finite_cells": 0,
+    "total_cells": 2720
+  },
+  "full_round_train_features": {
+    "n_structures": 725,
+    "failure_rates": [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "status_counts": {
+      "ast_rejected": 13775,
+      "exception": 725
+    },
+    "finite_cells": 0,
+    "total_cells": 14500
+  },
+  "feature_selection": {
+    "domain": "current-round inner-fit TRAIN only",
+    "threshold": 0.2,
+    "drop_comparison": ">",
+    "kept_names": [],
+    "dropped_names": [
+      "complete1",
+      "complete2",
+      "complete3",
+      "complete4",
+      "complete5",
+      "complete6",
+      "complete7",
+      "complete8",
+      "complete9",
+      "complete10",
+      "complete11",
+      "complete12",
+      "complete13",
+      "complete14",
+      "complete15",
+      "complete16",
+      "complete17",
+      "complete18",
+      "complete19",
+      "complete20"
+    ],
+    "fallback_to_magpie": true,
+    "validation_failure_rates_used_for_selection": false,
+    "TEST_failure_rates_used_for_selection": false
+  },
+  "fit": {
+    "parameters": {
+      "loss": "squared_error",
+      "learning_rate": 0.05,
+      "max_iter": 300,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 20,
+      "l2_regularization": 1.0,
+      "early_stopping": false,
+      "random_state": 20261018
+    },
+    "fit_predict_seconds": 1.4759322000318207,
+    "training_weights": "unweighted",
+    "imputation": "TRAIN-only median; keep_empty_features=True; all-empty columns fill0",
+    "all_missing_train_columns": []
+  },
+  "diagnostics": {
+    "validation": [
+      {
+        "name": "complete1",
+        "valid": false,
+        "error": "Indirect/local/recursive calls are forbidden"
+      },
+      {
+        "name": "complete2",
+        "valid": true,
+        "details": {
+          "policy_version": "H3-H4-numeric-sandbox-v1",
+          "source_sha256": "5d38bb6638a9d83105f32e9f6313242460d119e6ca4f27faa4057ad4e68ba110",
+          "ast_nodes": 142,
+          "parent_executed_generated_code": false
+        }
+      },
+      {
+        "name": "complete3",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete4",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete5",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete6",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete7",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete8",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete9",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete10",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete11",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete12",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete13",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete14",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete15",
+        "valid": false,
+        "error": "Indirect/local/recursive calls are forbidden"
+      },
+      {
+        "name": "complete16",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete17",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete18",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete19",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      },
+      {
+        "name": "complete20",
+        "valid": false,
+        "error": "Assignments may target plain local names only"
+      }
+    ],
+    "errors": [
+      {
+        "row": 1,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 2,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 0,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 3,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 4,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 5,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 6,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 7,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 9,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 10,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 8,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 12,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 11,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 13,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 14,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 15,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 17,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 16,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 18,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 19,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 20,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 21,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 22,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 24,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 23,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 25,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 26,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 27,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 28,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 29,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 30,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 32,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 31,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 33,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 34,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 35,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 36,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 37,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 39,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 38,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 41,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 40,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 42,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 43,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 45,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 44,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 46,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 48,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 47,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 49,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 51,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 50,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 52,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 53,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 54,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 56,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 55,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 57,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 58,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 60,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 59,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 62,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 61,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 64,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 63,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 65,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 66,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 67,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 68,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 69,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 70,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 72,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 73,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 74,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 75,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 76,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 71,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 77,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 78,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 79,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 80,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 82,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 83,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 84,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 85,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 81,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 86,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 88,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 87,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 89,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 90,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 91,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 92,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 93,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 95,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 94,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 96,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 97,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 98,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 99,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 100,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 101,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 103,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 104,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 102,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 105,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 106,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 107,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 108,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 110,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 109,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 112,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 111,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 113,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 114,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 115,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 116,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 117,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 118,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 120,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 119,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 121,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 122,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 123,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 125,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 124,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 126,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 127,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 128,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 129,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 130,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 131,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 132,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 133,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 134,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 135,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 136,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 137,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 138,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 140,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 139,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 141,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 142,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 143,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 144,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 145,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 146,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 147,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 149,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 148,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 151,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 150,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 152,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 153,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 154,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 155,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 156,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 157,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 158,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 160,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 159,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 161,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 163,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 164,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 162,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 166,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 167,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 165,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 168,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 169,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 171,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 170,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 172,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 173,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 174,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 175,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 176,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 178,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 177,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 179,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 180,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 181,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 182,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 183,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 184,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 185,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 186,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 188,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 189,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 187,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 190,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 192,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 191,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 193,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 195,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 194,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 196,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 197,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 198,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 199,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 201,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 200,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 202,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 203,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 204,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 205,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 206,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 207,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 208,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 209,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 210,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 211,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 212,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 214,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 213,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 215,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 217,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 216,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 218,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 219,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 220,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 221,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 222,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 223,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 225,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 226,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 224,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 227,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 228,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 230,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 229,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 231,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 232,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 234,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 233,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 236,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 235,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 237,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 239,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 238,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 241,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 240,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 242,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 243,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 244,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 246,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 247,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 245,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 248,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 250,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 251,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 249,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 253,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 254,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 252,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 255,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 256,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 257,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 258,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 259,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 260,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 261,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 262,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 263,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 264,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 265,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 266,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 267,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 268,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 269,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 270,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 271,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 272,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 273,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 274,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 275,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 276,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 277,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 278,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 279,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 280,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 281,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 282,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 284,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 283,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 285,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 286,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 287,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 288,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 289,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 290,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 291,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 292,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 293,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 294,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 295,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 296,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 297,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 298,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 299,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 300,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 301,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 302,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 303,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 305,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 304,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 307,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 306,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 308,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 309,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 310,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 312,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 311,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 313,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 314,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 316,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 315,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 317,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 318,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 320,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 319,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 322,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 321,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 324,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 323,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 325,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 326,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 328,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 327,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 329,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 331,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 330,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 332,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 334,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 333,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 335,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 336,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 337,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 338,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 340,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 341,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 342,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 343,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 344,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 345,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 339,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 347,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 348,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 349,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 350,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 351,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 346,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 353,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 352,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 354,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 355,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 356,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 357,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 358,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 360,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 359,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 361,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 362,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 363,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 364,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 366,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 365,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 368,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 367,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 370,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 369,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 371,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 372,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 373,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 374,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 375,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 376,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 378,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 377,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 379,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 380,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 381,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 383,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 382,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 384,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 386,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 385,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 388,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 387,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 389,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 391,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 390,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 392,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 393,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 394,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 395,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 396,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 397,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 398,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 399,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 401,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 400,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 402,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 404,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 403,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 406,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 405,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 408,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 407,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 409,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 410,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 411,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 412,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 413,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 414,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 416,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 415,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 417,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 418,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 420,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 421,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 422,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 419,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 424,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 425,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 426,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 427,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 423,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 428,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 430,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 429,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 431,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 432,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 434,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 435,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 436,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 433,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 438,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 437,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 440,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 439,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 441,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 442,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 443,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 445,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 444,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 447,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 446,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 448,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 449,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 450,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 451,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 452,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 454,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 453,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 456,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 455,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 457,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 458,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 460,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 459,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 461,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 462,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 463,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 464,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 466,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 465,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 467,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 468,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 469,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 470,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 472,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 471,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 473,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 474,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 475,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 476,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 478,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 479,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 477,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 480,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 481,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 483,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 482,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 485,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 484,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 486,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 487,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 488,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 490,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 489,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 491,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 493,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 492,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 494,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 495,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 496,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 497,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 498,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 499,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 500,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 502,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 503,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 504,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 505,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 501,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 507,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 508,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 509,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 510,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 506,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 511,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 512,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 513,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 514,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 516,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 515,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 517,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 519,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 520,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 518,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 521,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 522,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 523,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 524,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 525,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 526,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 527,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 529,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 528,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 530,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 532,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 531,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 533,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 535,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 534,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 536,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 537,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 538,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 540,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 539,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 541,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 542,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 543,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 545,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 544,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 546,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 547,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 548,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 549,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 550,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 551,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 552,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 553,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 554,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 555,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 556,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 557,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 559,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 560,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 558,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 561,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 562,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 563,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 565,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 566,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 564,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 567,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 568,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 569,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 570,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 571,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 572,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 574,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 573,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 575,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 577,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 576,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 579,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 578,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 580,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 582,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 583,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 581,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 584,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 586,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 587,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 588,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 589,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 590,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 591,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 592,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 585,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 593,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 595,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 594,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 596,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 597,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 599,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 598,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 600,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 602,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 603,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 604,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 605,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 606,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 607,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 608,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 601,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 609,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 610,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 611,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 613,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 614,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 612,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 615,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 616,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 617,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 618,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 619,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 620,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 621,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 622,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 623,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 624,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 626,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 625,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 628,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 627,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 629,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 631,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 632,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 630,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 633,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 634,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 636,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 635,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 637,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 639,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 638,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 640,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 641,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 643,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 642,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 644,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 645,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 646,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 648,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 647,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 649,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 650,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 652,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 651,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 654,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 655,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 653,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 656,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 657,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 658,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 659,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 661,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 660,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 663,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 664,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 662,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 666,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 665,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 667,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 668,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 670,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 669,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 672,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 671,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 673,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 675,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 676,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 674,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 678,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 679,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 680,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 681,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 682,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 677,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 684,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 685,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 686,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 687,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 688,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 689,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 690,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 691,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 692,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 683,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 694,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 693,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 696,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 695,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 697,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 698,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 699,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 700,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 702,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 701,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 703,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 704,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 705,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 706,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 707,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 708,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 710,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 709,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 711,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 712,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 713,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 714,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 716,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 715,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 717,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 718,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 719,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 720,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 721,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 723,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 722,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      },
+      {
+        "row": 724,
+        "feature": 1,
+        "status": "exception",
+        "error": "NameError: name 'pi' is not defined"
+      }
+    ],
+    "performance": {
+      "policy_version": "H4-batched-input-original50ms-v1",
+      "original_AST_policy_version": "H3-H4-numeric-sandbox-v1",
+      "wall_seconds": 6.33972490002634,
+      "n_structures": 725,
+      "n_features": 20,
+      "n_workers": 2,
+      "n_sandbox_processes_started": 2,
+      "n_timeouts": 0,
+      "status_counts": {
+        "ast_rejected": 13775,
+        "exception": 725
+      },
+      "deadline_ms": 50,
+      "deadline_includes": "parentGO dispatch, child execution, resultIPC and scheduling; unchanged fromH3",
+      "prepare_once_per_structure": true,
+      "input_decode_and_primitive_copy": "batch100 barrier with no inflight generated feature",
+      "generated_code_in_parent": false,
+      "memory_mb_per_worker": 512
+    }
+  },
+  "elapsed_seconds": 8.026268999965396,
+  "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\round.json",
+  "artifacts": {
+    "train_features": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\train_features.npz",
+      "sha256": "03e08eba4932d1ebe4866b9f70dccaaa0346d018ccb9a50916e609f5a486fa3c"
+    },
+    "validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round03\\validation_predictions.npz",
+      "sha256": "b08ac223855dac209222c9a9ad6d432031d03b7399580303db52d6d9c378c472"
+    }
+  },
+  "TEST_structures_executed": 0,
+  "TEST_target_values_read": false,
+  "record_sha256": "8097479d74b2f535359976936eed4c454a8504cef3914c798106b4e50cabc181"
+}

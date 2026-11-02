@@ -1,0 +1,443 @@
+{
+  "status": "complete",
+  "source_condition": "L0",
+  "projection_only": true,
+  "seed": 1,
+  "round_index": 5,
+  "source_round_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed1\\round05\\round.json",
+  "source_round_sha256": "8db5f25135a952af61f93fbef3ca746c0ca3d748a062e9c383febe0641e83ede",
+  "source_query_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\query_records\\L0_seed1_round05.json",
+  "source_query_sha256": "95e71c92bd907ae9806b0061d0a3999f4985f3540a484c2f5c8ba16f29ca8526",
+  "lofo_metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed1\\round05\\lofo.json",
+  "lofo_record_sha256": "f8c6bfa22cc18c0940d822153c581b56a150483080b923ff7fe170f42d548fdf",
+  "history": {
+    "round_index": 5,
+    "features": [
+      {
+        "name": "log_atomic_volume",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    v = s.get('volume_per_atom_A3')\n    if v is None or v <= 0:\n        b = s.get('basic_structure_statistics') or {}\n        v = b.get('volume_per_atom_A3')\n    if v is None or v <= 0:\n        return 0.0\n    return log(v)",
+        "description": "Log atomic volume, capturing structural expansion independently of composition."
+      },
+      {
+        "name": "covalent_packing_fraction",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    v = s.get('volume_per_atom_A3')\n    if v is None or v <= 0:\n        return 0.0\n    p = s.get('element_properties') or {}\n    c = s.get('composition') or {}\n    total = 0.0\n    weight = 0.0\n    for e, x in c.items():\n        r = (p.get(e) or {}).get('covalent_radius_A')\n        if x is not None and x > 0 and r is not None and r > 0:\n            total += x * r ** 3\n            weight += x\n    if weight <= 0:\n        return 0.0\n    return 4.0 * pi * total / (3.0 * weight * v)",
+        "description": "Composition-weighted covalent sphere volume divided by atomic volume."
+      },
+      {
+        "name": "mean_reduced_nearest_contact",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    if n == 0:\n        return 0.0\n    p = s.get('element_properties') or {}\n    radii = [(p.get(a.get('element')) or {}).get('covalent_radius_A') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    shortest = [inf] * n\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[i] > 0 and occ[j] > 0:\n            ri = radii[i]\n            rj = radii[j]\n            if ri is not None and rj is not None and ri > 0 and rj > 0:\n                shortest[i] = min(shortest[i], d / (ri + rj))\n    total = 0.0\n    weight = 0.0\n    for i in range(n):\n        if isfinite(shortest[i]) and occ[i] > 0:\n            total += occ[i] * shortest[i]\n            weight += occ[i]\n    return total / weight if weight > 0 else 0.0",
+        "description": "Mean sitewise shortest bond normalized by the sum of covalent radii."
+      },
+      {
+        "name": "minimum_reduced_contact",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    p = s.get('element_properties') or {}\n    radii = [(p.get(a.get('element')) or {}).get('covalent_radius_A') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    result = inf\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[i] > 0 and occ[j] > 0:\n            ri = radii[i]\n            rj = radii[j]\n            if ri is not None and rj is not None and ri > 0 and rj > 0:\n                result = min(result, d / (ri + rj))\n    return result if isfinite(result) else 0.0",
+        "description": "Smallest occupied periodic contact relative to covalent diameter."
+      },
+      {
+        "name": "nearest_distance_heterogeneity",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    shortest = [inf] * n\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            shortest[i] = min(shortest[i], d)\n    w = sum(occ[i] for i in range(n) if isfinite(shortest[i]))\n    if w <= 0:\n        return 0.0\n    mean = sum(occ[i] * shortest[i] for i in range(n) if isfinite(shortest[i])) / w\n    if mean <= 0:\n        return 0.0\n    var = sum(occ[i] * (shortest[i] - mean) ** 2 for i in range(n) if isfinite(shortest[i])) / w\n    return sqrt(max(var, 0.0)) / mean",
+        "description": "Occupancy-weighted coefficient of variation of sitewise nearest distances."
+      },
+      {
+        "name": "adaptive_coordination_mean",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    coord = [0.0] * n\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            coord[i] += occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n    w = sum(occ)\n    return sum(occ[i] * coord[i] for i in range(n)) / w if w > 0 else 0.0",
+        "description": "Mean smooth first-shell coordination using each site's shortest distance as its scale."
+      },
+      {
+        "name": "adaptive_coordination_std",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    coord = [0.0] * n\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            coord[i] += occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n    w = sum(occ)\n    if w <= 0:\n        return 0.0\n    mean = sum(occ[i] * coord[i] for i in range(n)) / w\n    return sqrt(max(sum(occ[i] * (coord[i] - mean) ** 2 for i in range(n)) / w, 0.0))",
+        "description": "Site-to-site standard deviation of smooth first-shell coordination."
+      },
+      {
+        "name": "covalent_overlap_load",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    p = s.get('element_properties') or {}\n    radii = [(p.get(a.get('element')) or {}).get('covalent_radius_A') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    weight = sum(occ)\n    if weight <= 0:\n        return 0.0\n    total = 0.0\n    for b in s.get('neighbors') or []:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8:\n            ri = radii[i]\n            rj = radii[j]\n            if ri is not None and rj is not None and ri > 0 and rj > 0:\n                overlap = min(max((ri + rj) / d - 1.0, 0.0), 3.0)\n                total += occ[i] * occ[j] * overlap * overlap\n    return total / (2.0 * weight)",
+        "description": "Squared covalent overlap summed over occupied contacts per atom; reduced overlap is capped at three."
+      },
+      {
+        "name": "contact_electronegativity_contrast",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    p = s.get('element_properties') or {}\n    en = [(p.get(a.get('element')) or {}).get('eneg') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i] and en[i] is not None and en[j] is not None:\n            w = occ[i] * occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n            total += w * (en[i] - en[j]) ** 2\n            weight += w\n    return total / weight if weight > 0 else 0.0",
+        "description": "Adaptive first-shell mean squared electronegativity difference."
+      },
+      {
+        "name": "heterobond_enrichment",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    counts = {}\n    for i in range(n):\n        e = sites[i].get('element')\n        counts[e] = counts.get(e, 0.0) + occ[i]\n    atoms = sum(occ)\n    if atoms <= 0:\n        return 0.0\n    random_fraction = 1.0 - sum((v / atoms) ** 2 for v in counts.values())\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            w = occ[i] * occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n            weight += w\n            if sites[i].get('element') != sites[j].get('element'):\n                total += w\n    return total / weight - random_fraction if weight > 0 else 0.0",
+        "description": "First-shell heteroelement contact fraction minus its random-mixing expectation."
+      },
+      {
+        "name": "local_electronegativity_separation",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    p = s.get('element_properties') or {}\n    en = [(p.get(a.get('element')) or {}).get('eneg') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    delta = [0.0] * n\n    weight = [0.0] * n\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i] and en[i] is not None and en[j] is not None:\n            w = occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n            delta[i] += w * (en[j] - en[i])\n            weight[i] += w\n    total = sum(occ[i] * (delta[i] / weight[i]) ** 2 for i in range(n) if weight[i] > 0)\n    atoms = sum(occ[i] for i in range(n) if weight[i] > 0)\n    return sqrt(max(total / atoms, 0.0)) if atoms > 0 else 0.0",
+        "description": "RMS difference between central electronegativity and its weighted shell mean."
+      },
+      {
+        "name": "contact_atomic_transfer_gap",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    p = s.get('element_properties') or {}\n    ie = [(p.get(a.get('element')) or {}).get('first_ionization_energy_eV') for a in sites]\n    ea = [(p.get(a.get('element')) or {}).get('electron_affinity_eV') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            gap = inf\n            if ie[i] is not None and ea[j] is not None:\n                gap = ie[i] - ea[j]\n            if ie[j] is not None and ea[i] is not None:\n                gap = min(gap, ie[j] - ea[i])\n            if isfinite(gap):\n                w = occ[i] * occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n                total += w * gap\n                weight += w\n    return total / weight if weight > 0 else 0.0",
+        "description": "Contact-weighted minimum directional ionization-energy minus electron-affinity gap."
+      },
+      {
+        "name": "valence_electron_density",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    v = s.get('volume_per_atom_A3')\n    if v is None or v <= 0:\n        return 0.0\n    p = s.get('element_properties') or {}\n    total = 0.0\n    weight = 0.0\n    for e, x in (s.get('composition') or {}).items():\n        z = (p.get(e) or {}).get('valence_electrons')\n        if x is not None and x > 0 and z is not None and z >= 0:\n            total += x * z\n            weight += x\n    return total / (weight * v) if weight > 0 else 0.0",
+        "description": "H3-convention valence electron count per cubic angstrom."
+      },
+      {
+        "name": "bonded_radius_mismatch",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    p = s.get('element_properties') or {}\n    radii = [(p.get(a.get('element')) or {}).get('covalent_radius_A') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    total = 0.0\n    weight = 0.0\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            ri = radii[i]\n            rj = radii[j]\n            if ri is not None and rj is not None and ri > 0 and rj > 0:\n                w = occ[i] * occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n                total += w * abs(ri - rj) / (ri + rj)\n                weight += w\n    return total / weight if weight > 0 else 0.0",
+        "description": "Adaptive contact-weighted fractional mismatch of covalent radii."
+      },
+      {
+        "name": "local_reduced_bond_disorder",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    p = s.get('element_properties') or {}\n    radii = [(p.get(a.get('element')) or {}).get('covalent_radius_A') for a in sites]\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    weights = [0.0] * n\n    first = [0.0] * n\n    second = [0.0] * n\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            ri = radii[i]\n            rj = radii[j]\n            if ri is not None and rj is not None and ri > 0 and rj > 0:\n                w = occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n                x = d / (ri + rj)\n                weights[i] += w\n                first[i] += w * x\n                second[i] += w * x * x\n    total = 0.0\n    atoms = 0.0\n    for i in range(n):\n        if weights[i] > 0 and first[i] > 0:\n            mean = first[i] / weights[i]\n            var = max(second[i] / weights[i] - mean * mean, 0.0)\n            total += occ[i] * sqrt(var) / mean\n            atoms += occ[i]\n    return total / atoms if atoms > 0 else 0.0",
+        "description": "Within-shell variation of covalent-radius-normalized bond lengths, averaged over sites."
+      },
+      {
+        "name": "global_bond_orientation_anisotropy",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    matrix = (s.get('lattice') or {}).get('matrix') or []\n    if n == 0 or len(matrix) != 3:\n        return 0.0\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    tensor = [0.0] * 6\n    weight = 0.0\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            fi = sites[i].get('frac_coords')\n            fj = sites[j].get('frac_coords')\n            image = b.get('image') or [0, 0, 0]\n            if fi is not None and fj is not None:\n                delta = [fj[k] + image[k] - fi[k] for k in range(3)]\n                vector = [sum(delta[k] * matrix[k][a] for k in range(3)) for a in range(3)]\n                length = sqrt(sum(x * x for x in vector))\n                if length > 1e-8:\n                    x, y, z = [a / length for a in vector]\n                    w = occ[i] * occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n                    terms = [x*x, y*y, z*z, x*y, x*z, y*z]\n                    for k in range(6):\n                        tensor[k] += w * terms[k]\n                    weight += w\n    if weight <= 0:\n        return 0.0\n    trace_square = (sum(tensor[k] ** 2 for k in range(3)) + 2.0 * sum(tensor[k] ** 2 for k in range(3, 6))) / weight ** 2\n    return min(max((3.0 * trace_square - 1.0) / 2.0, 0.0), 1.0)",
+        "description": "Rotation-invariant anisotropy of the global first-shell bond orientation tensor."
+      },
+      {
+        "name": "local_bond_vector_imbalance",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    matrix = (s.get('lattice') or {}).get('matrix') or []\n    if n == 0 or len(matrix) != 3:\n        return 0.0\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    resultant = [[0.0, 0.0, 0.0] for i in range(n)]\n    weights = [0.0] * n\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            fi = sites[i].get('frac_coords')\n            fj = sites[j].get('frac_coords')\n            image = b.get('image') or [0, 0, 0]\n            if fi is not None and fj is not None:\n                delta = [fj[k] + image[k] - fi[k] for k in range(3)]\n                vector = [sum(delta[k] * matrix[k][a] for k in range(3)) for a in range(3)]\n                length = sqrt(sum(x * x for x in vector))\n                if length > 1e-8:\n                    w = occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n                    for k in range(3):\n                        resultant[i][k] += w * vector[k] / length\n                    weights[i] += w\n    total = 0.0\n    atoms = 0.0\n    for i in range(n):\n        if weights[i] > 0:\n            value = sum(x * x for x in resultant[i]) / weights[i] ** 2\n            total += occ[i] * min(max(value, 0.0), 1.0)\n            atoms += occ[i]\n    return total / atoms if atoms > 0 else 0.0",
+        "description": "Mean squared resultant of local unit bond vectors, measuring unbalanced coordination."
+      },
+      {
+        "name": "local_angular_anisotropy",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    matrix = (s.get('lattice') or {}).get('matrix') or []\n    if n == 0 or len(matrix) != 3:\n        return 0.0\n    occ = [max(a.get('occupancy', 1.0) or 0.0, 0.0) for a in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and occ[j] > 0:\n            nearest[i] = min(nearest[i], d)\n    tensors = [[0.0] * 6 for i in range(n)]\n    weights = [0.0] * n\n    for b in edges:\n        i = b.get('i', -1)\n        j = b.get('j', -1)\n        d = b.get('distance_A') or 0.0\n        if 0 <= i < n and 0 <= j < n and d > 1e-8 and isfinite(nearest[i]) and d <= 1.6 * nearest[i]:\n            fi = sites[i].get('frac_coords')\n            fj = sites[j].get('frac_coords')\n            image = b.get('image') or [0, 0, 0]\n            if fi is not None and fj is not None:\n                delta = [fj[k] + image[k] - fi[k] for k in range(3)]\n                vector = [sum(delta[k] * matrix[k][a] for k in range(3)) for a in range(3)]\n                length = sqrt(sum(x * x for x in vector))\n                if length > 1e-8:\n                    x, y, z = [a / length for a in vector]\n                    w = occ[j] * exp(1.0 - (d / nearest[i]) ** 6)\n                    terms = [x*x, y*y, z*z, x*y, x*z, y*z]\n                    for k in range(6):\n                        tensors[i][k] += w * terms[k]\n                    weights[i] += w\n    total = 0.0\n    atoms = 0.0\n    for i in range(n):\n        if weights[i] > 0:\n            t = tensors[i]\n            trace_square = (sum(t[k] ** 2 for k in range(3)) + 2.0 * sum(t[k] ** 2 for k in range(3, 6))) / weights[i] ** 2\n            value = min(max((3.0 * trace_square - 1.0) / 2.0, 0.0), 1.0)\n            total += occ[i] * value\n            atoms += occ[i]\n    return total / atoms if atoms > 0 else 0.0",
+        "description": "Mean local orientation-tensor anisotropy, distinguishing isotropic, planar, and linear shells."
+      },
+      {
+        "name": "principal_lattice_anisotropy",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3:\n        return 0.0\n    a = np.asarray(matrix, dtype=float)\n    if a.shape != (3, 3) or not np.all(np.isfinite(a)):\n        return 0.0\n    eigenvalues = np.linalg.eigvalsh(np.matmul(a, a.T))\n    lo = float(eigenvalues[0])\n    hi = float(eigenvalues[2])\n    if lo <= 1e-12 or hi <= 0:\n        return 0.0\n    return 0.5 * log(hi / lo)",
+        "description": "Log ratio of largest to smallest principal lattice stretch, including cell skew."
+      },
+      {
+        "name": "mean_atomic_charging_gap",
+        "source": "def feature(s):\n    if not s:\n        return 0.0\n    p = s.get('element_properties') or {}\n    total = 0.0\n    weight = 0.0\n    for e, x in (s.get('composition') or {}).items():\n        a = p.get(e) or {}\n        ie = a.get('first_ionization_energy_eV')\n        ea = a.get('electron_affinity_eV')\n        if x is not None and x > 0 and ie is not None and ea is not None:\n            total += x * (ie - ea)\n            weight += x\n    return total / weight if weight > 0 else 0.0",
+        "description": "Composition-weighted atomic ionization-energy minus electron-affinity gap."
+      }
+    ],
+    "contributions": [
+      {
+        "feature_index": 0,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 1,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 2,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 3,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 4,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 5,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 6,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 7,
+        "delta_without_minus_full": 0.01345622319909684
+      },
+      {
+        "feature_index": 8,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 9,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 10,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 11,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 12,
+        "delta_without_minus_full": 0.005431818836809155
+      },
+      {
+        "feature_index": 13,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 14,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 15,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 16,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 17,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 18,
+        "delta_without_minus_full": null
+      },
+      {
+        "feature_index": 19,
+        "delta_without_minus_full": 0.00014792177601358203
+      }
+    ],
+    "failures": [
+      {
+        "feature_index": 0,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 1,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "exception|NameError: name 'pi' is not defined": 701
+        }
+      },
+      {
+        "feature_index": 2,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 3,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 4,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 5,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 6,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 8,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 9,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 10,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 11,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 13,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 14,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 15,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 16,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 17,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      },
+      {
+        "feature_index": 18,
+        "phase": "inner_fit",
+        "failed_count": 701,
+        "total_count": 701,
+        "reasons": {
+          "ast_rejected": 701
+        }
+      }
+    ],
+    "queries": [
+      {
+        "query": {
+          "exclude": [
+            "O",
+            "F",
+            "Cl",
+            "Br",
+            "I"
+          ],
+          "include_any": [
+            "La",
+            "Ce",
+            "Pr",
+            "Nd",
+            "Sm",
+            "Eu",
+            "Gd",
+            "Tb",
+            "Dy",
+            "Ho",
+            "Er",
+            "Tm",
+            "Yb",
+            "Lu"
+          ],
+          "n": 25,
+          "n_elements": [
+            2,
+            4
+          ]
+        },
+        "requested_count": 25,
+        "matched_count": 380,
+        "revealed_count": 25,
+        "carry_after": 50
+      },
+      {
+        "query": {
+          "exclude": [
+            "O"
+          ],
+          "include_any": [
+            "B",
+            "Be",
+            "Hf"
+          ],
+          "n": 25,
+          "n_elements": [
+            2,
+            4
+          ]
+        },
+        "requested_count": 25,
+        "matched_count": 77,
+        "revealed_count": 25,
+        "carry_after": 25
+      },
+      {
+        "query": {
+          "include_any": [
+            "F",
+            "Br"
+          ],
+          "n": 25,
+          "n_elements": [
+            2,
+            4
+          ]
+        },
+        "requested_count": 25,
+        "matched_count": 528,
+        "revealed_count": 25,
+        "carry_after": 0
+      }
+    ],
+    "query_summary": {
+      "capacity": 75,
+      "carry_in": 0,
+      "carry_out": 0,
+      "requested_count": 75,
+      "matched_count": 985,
+      "revealed_count": 75
+    },
+    "notes": ""
+  },
+  "generated_feature_executions": 0,
+  "TEST_targets_or_feedback_used": false,
+  "new_LLM_calls": 0
+}

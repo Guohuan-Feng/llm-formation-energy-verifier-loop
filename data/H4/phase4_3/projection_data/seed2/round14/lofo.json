@@ -1,0 +1,470 @@
+{
+  "schema_version": "H4.3-LOFO-complete-v1",
+  "status": "complete",
+  "identity": {
+    "protocol": "H4.3-LOFO-cached-TRAIN-validation-only-v1",
+    "source_round_record_sha256": "49544752b094af61134da55bd04526ac9680f74ff852986a7cc1c540498c3cba",
+    "source_round_artifacts": {
+      "train_features": {
+        "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round14\\train_features.npz",
+        "sha256": "9687a8604a491745605065935413bc6f4662949c58b66fae753e506508ab554d"
+      },
+      "validation_predictions": {
+        "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_2\\rounds\\L0_seed2\\round14\\validation_predictions.npz",
+        "sha256": "e679154c27cfb3d0031f598994386bc439200e6d0e4fc216f507744add724633"
+      }
+    },
+    "baseline_mae": 0.2590595599085133,
+    "train_labels_sha256": "219e6bd536f1ec03871441cd0319d7376ebbf7122c53ce349c5ac655cc5e15d2",
+    "code": {
+      "models_sha256": "6adf8e97d32b95d515e14fb96fcd09ce42512cf54b4472107382b4d123d47fa2",
+      "frozen_H4_1_model_helper_sha256": "895ebcee51a6ef5ff9e099a552ef0ceb4b58cc6a12f293b6367fc18c0b477b75",
+      "frozen_L0_model_source_sha256": "6a7fb6ead0fb28d8786b45235f5d226b547fbc3400ea9082f058c456726f958c",
+      "L1_data_source_sha256": "70a20055350832b862dc478d2bee2a316a3aa0966e730c75402110e32965177a",
+      "sandbox_sha256": "b93580670c1200e3b9d18225c223e4f7e8b0707d91cd05e7274679b4ec7bfcec",
+      "original_ast_policy_sha256": "a125890433a1ab69d3f060d4ea661392e5d46c37f711eb4b6eb938f23562912c",
+      "frozen_h3_hgb_source_sha256": "82dcea515ae515785df99d3aa106b4555f9a323d93c88814b7683c6d656553cb"
+    },
+    "parameters": {
+      "loss": "squared_error",
+      "learning_rate": 0.05,
+      "max_iter": 300,
+      "max_leaf_nodes": 15,
+      "min_samples_leaf": 20,
+      "l2_regularization": 1.0,
+      "early_stopping": false,
+      "random_state": 20261018
+    },
+    "kept_feature_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      12,
+      13
+    ],
+    "delta_definition": "row validation MAE_without_minus_saved_full; positive beneficial",
+    "generated_feature_executions": 0,
+    "TEST_targets_or_feedback_used": false
+  },
+  "identity_sha256": "796fbf2c187b6a1ce8a8b87c461660b7bf1e20dac60c3b439715fd9120939828",
+  "seed": 2,
+  "round_index": 14,
+  "baseline_validation_mae": 0.2590595599085133,
+  "raw_features": [
+    {
+      "name": "valence_electron_density",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    electrons = 0.0\n    occupied = 0.0\n    for site in s.get('sites') or []:\n        o = site.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        occupied += o\n        v = (props.get(site.get('element')) or {}).get('valence_electrons')\n        if v is not None:\n            electrons += o * max(0.0, v)\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is None or volume <= 0:\n        v = s.get('volume_per_atom_A3')\n        volume = v * occupied if v is not None and v > 0 else 0.0\n    return electrons / volume if volume > 0 else 0.0",
+      "description": "Occupancy-weighted valence electrons per cell volume."
+    },
+    {
+      "name": "covalent_overlap_load",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    overlap = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0:\n                overlap += occ[i] * occ[j] * max(0.0, 1.0 - d / (a + b)) ** 2\n    total = sum(occ)\n    return 0.5 * overlap / total if total > 0 else 0.0",
+      "description": "Squared covalent-sphere overlaps per occupied atom, counting periodic contacts once."
+    },
+    {
+      "name": "short_p_block_homonuclear_contacts",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    elements = [x.get('element') for x in sites]\n    r = [(props.get(e) or {}).get('covalent_radius_A') for e in elements]\n    groups = [(props.get(e) or {}).get('group') for e in elements]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    value = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0 and elements[i] == elements[j]:\n            if groups[i] is not None and 14 <= groups[i] <= 17 and r[i] is not None and r[j] is not None and r[i] > 0 and r[j] > 0:\n                if d <= 1.2 * (r[i] + r[j]):\n                    value += occ[i] * occ[j]\n    total = sum(occ)\n    return 0.5 * value / total if total > 0 else 0.0",
+      "description": "Short homonuclear group 14–17 contacts per occupied atom."
+    },
+    {
+      "name": "mean_first_ionization_energy",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    value = 0.0\n    total = 0.0\n    for element, fraction in (s.get('composition') or {}).items():\n        x = (props.get(element) or {}).get('first_ionization_energy_eV')\n        if fraction is not None and fraction > 0 and x is not None:\n            value += fraction * x\n            total += fraction\n    return value / total if total > 0 else 0.0",
+      "description": "Composition-weighted mean available first ionization energy."
+    },
+    {
+      "name": "mean_electron_affinity",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    value = 0.0\n    total = 0.0\n    for element, fraction in (s.get('composition') or {}).items():\n        x = (props.get(element) or {}).get('electron_affinity_eV')\n        if fraction is not None and fraction > 0 and x is not None:\n            value += fraction * x\n            total += fraction\n    return value / total if total > 0 else 0.0",
+      "description": "Composition-weighted mean available electron affinity."
+    },
+    {
+      "name": "atomic_volume",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    v = s.get('volume_per_atom_A3')\n    if v is not None and v > 0:\n        return float(v)\n    occupied = 0.0\n    for site in s.get('sites') or []:\n        o = site.get('occupancy')\n        occupied += max(0.0, o if o is not None else 1.0)\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    return volume / occupied if volume is not None and volume > 0 and occupied > 0 else 0.0",
+      "description": "Volume per atom, with occupancy-based cell-volume fallback."
+    },
+    {
+      "name": "mean_valence_f_subshell_occupancy",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    value = 0.0\n    total = 0.0\n    for element, fraction in (s.get('composition') or {}).items():\n        shell = (props.get(element) or {}).get('pymatgen_valence_subshell')\n        if fraction is not None and fraction > 0 and shell is not None and len(shell) == 2:\n            l = shell[0]\n            count = shell[1]\n            if l is not None and count is not None:\n                total += fraction\n                if l == 3:\n                    value += fraction * max(0.0, count)\n    return value / total if total > 0 else 0.0",
+      "description": "Composition-weighted f occupancy in the supplied valence-subshell convention."
+    },
+    {
+      "name": "covalent_packing_fraction",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    props = s.get('element_properties') or {}\n    occupied = 0.0\n    spheres = 0.0\n    for site in s.get('sites') or []:\n        o = site.get('occupancy')\n        o = max(0.0, o if o is not None else 1.0)\n        occupied += o\n        r = (props.get(site.get('element')) or {}).get('covalent_radius_A')\n        if r is not None and r > 0:\n            spheres += o * r ** 3\n    volume = (s.get('lattice') or {}).get('volume_A3')\n    if volume is None or volume <= 0:\n        v = s.get('volume_per_atom_A3')\n        volume = v * occupied if v is not None and v > 0 else 0.0\n    return 4.0 * pi * spheres / (3.0 * volume) if volume > 0 else 0.0",
+      "description": "Occupied covalent-sphere volume divided by cell volume; spheres may overlap."
+    },
+    {
+      "name": "adaptive_shell_coordination_mean",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0:\n            nearest[i] = min(nearest[i], d)\n    coordination = [0.0] * n\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0 and d <= 1.25 * nearest[i]:\n            coordination[i] += occ[j]\n    total = sum(occ)\n    return sum(occ[i] * coordination[i] for i in range(n)) / total if total > 0 else 0.0",
+      "description": "Mean occupancy-weighted coordination within 1.25 times each site's nearest occupied-neighbor distance."
+    },
+    {
+      "name": "adaptive_shell_coordination_std",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0:\n            nearest[i] = min(nearest[i], d)\n    coordination = [0.0] * n\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0 and d <= 1.25 * nearest[i]:\n            coordination[i] += occ[j]\n    total = sum(occ)\n    if total <= 0:\n        return 0.0\n    mean = sum(occ[i] * coordination[i] for i in range(n)) / total\n    return sqrt(max(0.0, sum(occ[i] * (coordination[i] - mean) ** 2 for i in range(n)) / total))",
+      "description": "Site-to-site standard deviation of occupancy-weighted adaptive-shell coordination."
+    },
+    {
+      "name": "minimum_covalent_distance_ratio_mean",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    closest = [inf] * n\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0:\n                closest[i] = min(closest[i], d / (a + b))\n    total = sum(occ[i] for i in range(n) if isfinite(closest[i]))\n    return sum(occ[i] * closest[i] for i in range(n) if isfinite(closest[i])) / total if total > 0 else 0.0",
+      "description": "Mean minimum neighbor distance normalized by the pair's covalent-radius sum."
+    },
+    {
+      "name": "minimum_covalent_distance_ratio_std",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    closest = [inf] * n\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0:\n                closest[i] = min(closest[i], d / (a + b))\n    total = sum(occ[i] for i in range(n) if isfinite(closest[i]))\n    if total <= 0:\n        return 0.0\n    mean = sum(occ[i] * closest[i] for i in range(n) if isfinite(closest[i])) / total\n    return sqrt(max(0.0, sum(occ[i] * (closest[i] - mean) ** 2 for i in range(n) if isfinite(closest[i])) / total))",
+      "description": "Site-to-site spread of minimum covalent-normalized contact distances."
+    },
+    {
+      "name": "short_bond_electronegativity_contrast",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    chi = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    value = 0.0\n    weight = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0 and chi[i] is not None and chi[j] is not None:\n                if d <= 1.3 * (a + b):\n                    w = occ[i] * occ[j] / max(d * d, 0.01)\n                    value += w * (chi[i] - chi[j]) ** 2\n                    weight += w\n    return value / weight if weight > 0 else 0.0",
+      "description": "Mean squared electronegativity difference across short covalent contacts, weighted by occupancy and inverse squared distance."
+    },
+    {
+      "name": "short_bond_heteronuclear_fraction",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    elements = [x.get('element') for x in sites]\n    radii = [(props.get(e) or {}).get('covalent_radius_A') for e in elements]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    hetero = 0.0\n    total = 0.0\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0 and d <= 1.3 * (a + b):\n                w = occ[i] * occ[j]\n                total += w\n                if elements[i] != elements[j]:\n                    hetero += w\n    return hetero / total if total > 0 else 0.0",
+      "description": "Occupancy-weighted fraction of short covalent contacts joining different elements."
+    },
+    {
+      "name": "p_block_smooth_bond_deficit",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    groups = [(props.get(x.get('element')) or {}).get('group') for x in sites]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    bonds = [0.0] * n\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            g = groups[i]\n            if g is not None and 14 <= g <= 17 and a is not None and b is not None and a > 0 and b > 0:\n                if d <= 1.35 * (a + b):\n                    bonds[i] += occ[j] * exp(max(-8.0, min(2.0, (a + b - d) / 0.3)))\n    value = 0.0\n    total = 0.0\n    for i in range(n):\n        g = groups[i]\n        if g is not None and 14 <= g <= 17 and radii[i] is not None and radii[i] > 0:\n            target = 18.0 - g\n            value += occ[i] * max(0.0, target - bonds[i]) / target\n            total += occ[i]\n    return value / total if total > 0 else 0.0",
+      "description": "Group 14–17 octet-coordination deficit using a smooth distance-based bond-order surrogate; not an oxidation-state assignment."
+    },
+    {
+      "name": "p_block_isolated_dimer_fraction",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    groups = [(props.get(x.get('element')) or {}).get('group') for x in sites]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    degree = [0] * n\n    partner = [-1] * n\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[i] > 0 and occ[j] > 0 and d is not None and d > 0:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0 and d <= 1.2 * (a + b):\n                degree[i] += 1\n                partner[i] = j\n    value = 0.0\n    for i in range(n):\n        j = partner[i]\n        if degree[i] == 1 and 0 <= j < n and j != i and degree[j] == 1 and partner[j] == i:\n            a = groups[i]\n            b = groups[j]\n            if a is not None and b is not None and 14 <= a <= 17 and 14 <= b <= 17:\n                value += occ[i]\n    total = sum(occ)\n    return value / total if total > 0 else 0.0",
+      "description": "Fraction of occupied atoms in isolated short-bond dimers whose atoms both belong to groups 14–17."
+    },
+    {
+      "name": "local_shell_radial_distortion",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0:\n            nearest[i] = min(nearest[i], d)\n    weights = [0.0] * n\n    first = [0.0] * n\n    second = [0.0] * n\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and d is not None and d > 0 and d <= 1.25 * nearest[i]:\n            weights[i] += occ[j]\n            first[i] += occ[j] * d\n            second[i] += occ[j] * d * d\n    value = 0.0\n    total = 0.0\n    for i in range(n):\n        if weights[i] > 0 and first[i] > 0:\n            mean = first[i] / weights[i]\n            variance = max(0.0, second[i] / weights[i] - mean * mean)\n            value += occ[i] * sqrt(variance) / mean\n            total += occ[i]\n    return value / total if total > 0 else 0.0",
+      "description": "Mean within-site coefficient of variation of distances in the adaptive 1.25-nearest-distance shell."
+    },
+    {
+      "name": "local_shell_directional_anisotropy",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    matrix = (s.get('lattice') or {}).get('matrix')\n    if matrix is None or len(matrix) != 3 or any(len(row) != 3 for row in matrix):\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    nearest = [inf] * n\n    edges = s.get('neighbors') or []\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0:\n            nearest[i] = min(nearest[i], d)\n    moments = [[0.0] * 6 for i in range(n)]\n    weights = [0.0] * n\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0 and d <= 1.25 * nearest[i]:\n            a = sites[i].get('frac_coords')\n            b = sites[j].get('frac_coords')\n            image = edge.get('image')\n            if a is None or b is None or image is None or len(a) != 3 or len(b) != 3 or len(image) != 3:\n                continue\n            f = [b[k] + image[k] - a[k] for k in range(3)]\n            v = [sum(f[k] * matrix[k][t] for k in range(3)) for t in range(3)]\n            norm = sqrt(sum(x * x for x in v))\n            if norm <= 0:\n                continue\n            x = v[0] / norm\n            y = v[1] / norm\n            z = v[2] / norm\n            terms = [x*x, y*y, z*z, x*y, x*z, y*z]\n            for k in range(6):\n                moments[i][k] += occ[j] * terms[k]\n            weights[i] += occ[j]\n    value = 0.0\n    total = 0.0\n    for i in range(n):\n        if weights[i] > 0:\n            m = [x / weights[i] for x in moments[i]]\n            trace_square = sum(m[k] ** 2 for k in range(3)) + 2.0 * sum(m[k] ** 2 for k in range(3, 6))\n            value += occ[i] * sqrt(max(0.0, min(1.0, 1.5 * trace_square - 0.5)))\n            total += occ[i]\n    return value / total if total > 0 else 0.0",
+      "description": "Mean rotationally invariant anisotropy of adaptive-shell bond-direction second moments; zero is isotropic, one is collinear."
+    },
+    {
+      "name": "covalent_network_periodic_rank",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    if n == 0:\n        return 0.0\n    props = s.get('element_properties') or {}\n    radii = [(props.get(x.get('element')) or {}).get('covalent_radius_A') for x in sites]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    adjacency = [[] for i in range(n)]\n    for edge in s.get('neighbors') or []:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        image = edge.get('image')\n        if 0 <= i < n and 0 <= j < n and occ[i] > 0 and occ[j] > 0 and d is not None and d > 0 and image is not None and len(image) == 3:\n            a = radii[i]\n            b = radii[j]\n            if a is not None and b is not None and a > 0 and b > 0 and d <= 1.2 * (a + b):\n                adjacency[i] += [(j, tuple(image))]\n    shifts = [None] * n\n    best = 0\n    for root in range(n):\n        if shifts[root] is not None or occ[root] <= 0:\n            continue\n        shifts[root] = (0, 0, 0)\n        queue = [root]\n        cycles = []\n        for q in range(n):\n            if q >= len(queue):\n                break\n            i = queue[q]\n            for j, image in adjacency[i]:\n                candidate = tuple(shifts[i][k] + image[k] for k in range(3))\n                if shifts[j] is None:\n                    shifts[j] = candidate\n                    queue += [j]\n                else:\n                    residual = tuple(candidate[k] - shifts[j][k] for k in range(3))\n                    if any(x != 0 for x in residual):\n                        cycles += [residual]\n        if len(cycles) > 0:\n            rank = int(np.linalg.matrix_rank(np.asarray(cycles, dtype=float), tol=1e-7))\n            best = max(best, rank)\n            if best == 3:\n                return 3.0\n    return float(best)",
+      "description": "Maximum translation rank of a connected short-covalent-bond network: molecular zero, chain one, layer two, framework three."
+    },
+    {
+      "name": "local_environment_chemical_polarity",
+      "source": "def feature(s):\n    if not s:\n        return 0.0\n    sites = s.get('sites') or []\n    n = len(sites)\n    props = s.get('element_properties') or {}\n    chi = [(props.get(x.get('element')) or {}).get('eneg') for x in sites]\n    occ = [max(0.0, x.get('occupancy') if x.get('occupancy') is not None else 1.0) for x in sites]\n    edges = s.get('neighbors') or []\n    nearest = [inf] * n\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and occ[j] > 0 and d is not None and d > 0:\n            nearest[i] = min(nearest[i], d)\n    weights = [0.0] * n\n    neighbor_chi = [0.0] * n\n    for edge in edges:\n        i = edge.get('i', -1)\n        j = edge.get('j', -1)\n        d = edge.get('distance_A')\n        if 0 <= i < n and 0 <= j < n and chi[j] is not None and d is not None and d > 0 and d <= 1.25 * nearest[i]:\n            w = occ[j] / max(d * d, 0.01)\n            weights[i] += w\n            neighbor_chi[i] += w * chi[j]\n    value = 0.0\n    total = 0.0\n    for i in range(n):\n        if chi[i] is not None and weights[i] > 0:\n            contrast = neighbor_chi[i] / weights[i] - chi[i]\n            value += occ[i] * contrast * contrast\n            total += occ[i]\n    return value / total if total > 0 else 0.0",
+      "description": "Mean squared difference between a site's electronegativity and its adaptive-shell neighbor average, measuring local chemical polarity."
+    }
+  ],
+  "contributions": [
+    {
+      "feature_index": 0,
+      "delta_without_minus_full": 0.0026257111409898615
+    },
+    {
+      "feature_index": 1,
+      "delta_without_minus_full": 0.0009454938259454981
+    },
+    {
+      "feature_index": 2,
+      "delta_without_minus_full": -0.0019000497304168529
+    },
+    {
+      "feature_index": 3,
+      "delta_without_minus_full": -0.0017410834453907564
+    },
+    {
+      "feature_index": 4,
+      "delta_without_minus_full": -0.0006716545712627808
+    },
+    {
+      "feature_index": 5,
+      "delta_without_minus_full": 0.0037092127863808666
+    },
+    {
+      "feature_index": 6,
+      "delta_without_minus_full": -0.0030812542792281183
+    },
+    {
+      "feature_index": 7,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 8,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 9,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 10,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 11,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 12,
+      "delta_without_minus_full": 0.0239740878218781
+    },
+    {
+      "feature_index": 13,
+      "delta_without_minus_full": 0.004412897604739452
+    },
+    {
+      "feature_index": 14,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 15,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 16,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 17,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 18,
+      "delta_without_minus_full": null
+    },
+    {
+      "feature_index": 19,
+      "delta_without_minus_full": null
+    }
+  ],
+  "failures": [
+    {
+      "feature_index": 7,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "exception|NameError: name 'pi' is not defined": 1239
+      }
+    },
+    {
+      "feature_index": 8,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 9,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 10,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 11,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 14,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 15,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 16,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 17,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 18,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    },
+    {
+      "feature_index": 19,
+      "phase": "inner_fit",
+      "failed_count": 1239,
+      "total_count": 1239,
+      "reasons": {
+        "ast_rejected": 1239
+      }
+    }
+  ],
+  "retained_feature_count": 9,
+  "LOFO_fit_count": 9,
+  "feature_records": [
+    {
+      "feature_index": 0,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature00.json",
+      "record_sha256": "0f50750379cdca7bc60164cba18f2b65844397749097161a00bf2515d11b5b9b"
+    },
+    {
+      "feature_index": 1,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature01.json",
+      "record_sha256": "dfc1fa6dde148b0c2c0dcb46b9e1a916e2a7242665da5805acad8153726868ec"
+    },
+    {
+      "feature_index": 2,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature02.json",
+      "record_sha256": "1ac179cec0fefc826792d9f45970b33ffc4a41c3190c30704f5d2f0d4dc200ab"
+    },
+    {
+      "feature_index": 3,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature03.json",
+      "record_sha256": "0bd51e83dee66736029694c2fcf841c8a46605eb6d931ba2e998addcff68ca2a"
+    },
+    {
+      "feature_index": 4,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature04.json",
+      "record_sha256": "144a490e39502de6da95b0cfa64f89414e315238425d4c247c2df33c1f8e7719"
+    },
+    {
+      "feature_index": 5,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature05.json",
+      "record_sha256": "1f9f34efdd812788032420de8e8e6beb824881b4334dfb01aefca1d0cd696654"
+    },
+    {
+      "feature_index": 6,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature06.json",
+      "record_sha256": "c5cf1a9f630b23d2e5bc886be162743cd91884355ad876bb89ac00deaa79787a"
+    },
+    {
+      "feature_index": 12,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature12.json",
+      "record_sha256": "acab711a4675944a97c1a490e3809595272b274ad22eca3ed48845d64fee678a"
+    },
+    {
+      "feature_index": 13,
+      "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature13.json",
+      "record_sha256": "850f53f82c617e16a2aab73667e55b776130d30ccdd14c772b28daca0c2bf638"
+    }
+  ],
+  "artifacts": {
+    "feature0": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature00.json",
+      "sha256": "41f7f7a086ba86c9c58256db9fd2b5fb5867a9960cc4fad56b42b0ca77da6872"
+    },
+    "feature0_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature00_validation.npz",
+      "sha256": "8479bcbd8a8a31d9b6295eb749c527d91b3809915214db612a8515af5e0d8353"
+    },
+    "feature1": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature01.json",
+      "sha256": "d796fc9293a89d8a718a860b2064332c67a5dbe57c0f405c81b48593e2c39f56"
+    },
+    "feature1_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature01_validation.npz",
+      "sha256": "e6cf399d800dee40ec7820aa4b69bbbbb6a82958c95dc8098641948dd8ea3330"
+    },
+    "feature2": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature02.json",
+      "sha256": "5a45656b8fabb7be80c316065947af53fe6cf70713c5c385f5a6f80d78464480"
+    },
+    "feature2_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature02_validation.npz",
+      "sha256": "c91e3610a7896ba4f235cdc50e59e6274a9371a7ebf88d7029a1fb8c390177df"
+    },
+    "feature3": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature03.json",
+      "sha256": "67b804e87f4ede3790d45802decdda3eee3b3044e4f4ab3fae8ef3472e2749ee"
+    },
+    "feature3_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature03_validation.npz",
+      "sha256": "52f5ad2ba4e791d50abf4a6bff7e3c8be8e95222702a1ebb8b6be7110f9cf5b5"
+    },
+    "feature4": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature04.json",
+      "sha256": "7fdda7858130312c34f53f1da21279372aa2f8ed6c1ee5f522b581e3ee4753a4"
+    },
+    "feature4_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature04_validation.npz",
+      "sha256": "24dee28848daa4db90609df2175e061488615aad079c43ff5b211a8c5d6e489f"
+    },
+    "feature5": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature05.json",
+      "sha256": "29a08e73960008b8344f45625cb2d443b573140bcf048c6dcde114ed7809534f"
+    },
+    "feature5_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature05_validation.npz",
+      "sha256": "d79a625ddafadb73e76f1a6ba651880a11eef20e8572f9c8f37f0246c2c48647"
+    },
+    "feature6": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature06.json",
+      "sha256": "8e70e330790e82d29e5a0fbc5e5dffce03bcfe2db011535ce23403980a56923f"
+    },
+    "feature6_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature06_validation.npz",
+      "sha256": "b43fa3e083c658569c99e86a0127cd6b2aa893484d36a8bc61def56f1b7e33ec"
+    },
+    "feature12": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature12.json",
+      "sha256": "c66133a31ba0dd9f75aed80b5026e709cfe1c896e0e3e33e9f1c8a2b100b29e9"
+    },
+    "feature12_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature12_validation.npz",
+      "sha256": "2074394505faa5d237915b5e93b8c8c0faa8886b504928c80136aa6cf6da1874"
+    },
+    "feature13": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature13.json",
+      "sha256": "44c77530f5ac79316cbf53bf115f049443c608550b9bd211db0f767cea5ad0bc"
+    },
+    "feature13_validation_predictions": {
+      "path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\feature13_validation.npz",
+      "sha256": "ac3e462f58e16e7038ffcdd1d2e4aabb76a2fbb4069b410eb6144043e26b21d8"
+    }
+  },
+  "metadata_path": "C:\\Users\\28908\\Codex\\fung-research\\v2-diagnosis\\work\\h-data\\H4\\phase4_3\\projection_data\\seed2\\round14\\lofo.json",
+  "elapsed_seconds": 8.014305600023363,
+  "generated_feature_executions": 0,
+  "TEST_targets_or_feedback_used": false,
+  "record_sha256": "9bc91bc418f6ecefe5e3049d5c44ed5dc739c6f8c3afe5046c1c19096550d305"
+}
