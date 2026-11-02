@@ -38,6 +38,8 @@ LLM 能否在同样标签数下，为形成能预测写出比普通描述符更�
 - `data/H2/`：H2 数据生成的全部文件，包括合成数据（POOL 5000、TEST 1000）和真实数据（DFT 与 CHGNet 标签）的 `*_private.json.gz` 文件。
 - `data/H4/`：H4 工作目录，包括每轮的 LLM 请求与回复记录（`llm_calls.jsonl`、`requests/`）、特征代码、统计输出、报告，以及中间缓存。
 - `data/H4_feature_loop/`：H4 对外公开目录的原始文件（预测、指标、运行日志、配置）。
+- `data/README.md`：数据目录的逐项索引，说明每个文件和子目录的内容。
+- `docs/PROTOCOL_REVISIONS.md`：全部协议修订、中途改动和偏差的记录，每条写明时间、原因和对结论的影响。
 
 ## 数据政策
 
@@ -55,6 +57,15 @@ LLM 能否在同样标签数下，为形成能预测写出比普通描述符更�
 - Python，CHGNet 0.3.0，matminer（Magpie 特征）。
 - Matbench mp_e_form（真实 DFT 形成能来源）：<https://figshare.com/articles/dataset/mp_e_form/9755432>
 - Codex CLI 与 gpt-6.1-sol 的访问权限：<https://github.com/openai/codex>
+
+**路径要求。** H4 的代码用 `Path(__file__).resolve().parents[4]` 定位项目根目录，要求代码位于原始工作目录的层次中，即 `<ROOT>\work\h-data\H4\src`。`code/H4_src` 和 `code/H4_tests` 直接放在本仓库里运行时，这个路径不对，会找不到数据。要复现，有两种方法：
+
+1. 把 `data/` 下的内容放回 `<ROOT>\work\h-data\` 下，对应 H2 和 H4 的目录，然后从原始位置运行代码。
+2. 修改每个 `.py` 文件中的 `ROOT` 定义，指向本仓库的根目录。
+
+H2 的生成与评估脚本在 `data/H2/protocol_revision1_prior/`、`protocol_revision2_prior/` 和 `resource_revision0/` 中，文件名以 `h2_` 和 `p1_` 开头。
+
+如果只想核对结果，不需要运行代码：直接看 `docs/` 中的报告和 `predictions/` 中的预测即可。
 
 ## 许可证
 
